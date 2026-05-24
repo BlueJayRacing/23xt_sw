@@ -1,0 +1,3 @@
+idf_component_register(SRCS "template.cpp"
+                    INCLUDE_DIRS "include"
+                    REQUIRES driver) # list of required idf components
