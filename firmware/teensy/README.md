@@ -46,11 +46,11 @@ It's easiest to run a project by opening it up in an isolated VSCode window. So 
 
 There are two spots to access the Plat IO functions that you need to run a project. The extension side pannel (looks like an alien) and the menu bar at the *bottom* of the VSCode window.
 
-** Sidebar Menu**
+**Sidebar Menu:**
 
 ![side menu](docs/images/side_menu_ano.png)
 
-**Bottom Bar Menu**
+**Bottom Bar Menu:**
 
 ![bar menu](docs/images/bar_menu_ano.png)
 
