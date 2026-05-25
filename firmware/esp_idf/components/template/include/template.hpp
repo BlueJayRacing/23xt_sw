@@ -1,5 +1,5 @@
 #pragma once
-#ifndef _TEMPLATE_
-#define _TEMPLATE_
+#ifndef _TEMPLATE_H_
+#define _TEMPLATE_H_
 
 #endif

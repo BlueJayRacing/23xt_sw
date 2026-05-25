@@ -1,14 +1,15 @@
 # Visual Studio Code
 .vscode/*
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
-!.vscode/*.code-snippets
-!*.code-workspace
+.vscode
 
 # Built Visual Studio Code Extensions
 *.vsix
 
-# ESP-IDF Build
+# Builds
 build/*
+build
+
+# Platform IO config/build
+.pio
+.pio/*
+

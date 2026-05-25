@@ -47,7 +47,7 @@ This is for tests for specific component libraries. You can either use the test 
 
 ## Running a Project
 
-First thing is to plug into the ESP device to your computer.
+First thing is to plug into the ESP device into your computer.
 
 It's easiest to run a project by opening it up in an isolated VSCode window. So open a project (either in esp_idf/prod/project_name or esp_idf/test/test_name) as the parent directy in VSCode.
 
