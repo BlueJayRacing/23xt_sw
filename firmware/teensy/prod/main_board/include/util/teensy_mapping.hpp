@@ -1,0 +1,222 @@
+/**
+ * @file teensy_mapping.hpp
+ * @brief Defines the internal channel ID system for the Teensy data acquisition system
+ */
+
+ #pragma once
+
+ #include <cstdint>
+ #include <string>
+ #include <array>
+ #include <unordered_map>
+ #include <util/channel_mapping.hpp>
+ 
+ namespace baja {
+ namespace util {
+
+constexpr uint8_t WSG0_BASE_CHANNEL_ID = 22;
+constexpr uint8_t WSG1_BASE_CHANNEL_ID = 25;
+ 
+ /**
+  * @brief Internal channel ID enumeration
+  * 
+  * Maps all possible data sources in the system to a unified ID space
+  * - Analog channels (ADC AIN 0-15): IDs 0-15
+  * - Digital channels (DIN 0-5): IDs 16-21 
+  * - MISC channels: IDs 22-29
+  */
+ enum class InternalChannelID : uint8_t {
+     // Analog channels (ADC)
+     AIN0 = 0,   // Ground reference
+     AIN1,       // SG 2
+     AIN2,       // SG 1
+     AIN3,       // 2.5V reference (buffered)
+     AIN4,       // Channel 1
+     AIN5,       // Channel 2
+     AIN6,       // Channel 3
+     AIN7,       // Channel 4
+     AIN8,       // Channel 5 
+     AIN9,       // Channel 6
+     AIN10,      // Channel 7
+     AIN11,      // Channel 8
+     AIN12,      // Channel 9
+     AIN13,      // Channel 10
+     AIN14,      // monitor 5v should be 4.35
+     AIN15,      // 2.5 V ref monitor
+     
+     // Digital channels
+     DIN0 = 16,
+     DIN1,
+     DIN2,
+     DIN3,
+     DIN4,
+     DIN5,
+
+     WSG0_SG0 = 22,
+     WSG0_SG1,
+     WSG0_SG2,
+     WSG1_SG0 = 25,
+     WSG1_SG1,
+     WSG1_SG2,
+     
+     // Miscellaneous channels
+     MISC0 = 28,  // Can be used for system temperature
+     MISC1,       // Can be used for power supply voltage
+     MISC2,       // Can be used for CPU load
+     MISC3,       // Can be used for memory usage
+     MISC4,
+     MISC5,
+     MISC6,
+     MISC7,
+     
+     UNKNOWN = 127  // For invalid mappings, keep under 128 for varint sizing
+ };
+ 
+ // Total number of channels in the system
+ constexpr uint8_t TOTAL_CHANNEL_COUNT = 36;
+ 
+ // String representations of channel IDs with descriptive names
+ const std::array<std::string, TOTAL_CHANNEL_COUNT> CHANNEL_NAMES = {
+     "ADC AIN 0 - Ground reference",
+     "ADC AIN 1 - Strain gage 2",
+     "ADC AIN 2 - Strain gage 1",
+     "ADC AIN 3 - 2.5V reference (buffered)",
+     "ADC AIN 4 - Channel 1, LIN_POT_1_FL",
+     "ADC AIN 5 - Channel 2",
+     "ADC AIN 6 - Channel 3, LIN_POT_2_FR", 
+     "ADC AIN 7 - Channel 4, STEERING_POT_1",
+     "ADC AIN 8 - Channel 5",
+     "ADC AIN 9 - Channel 6, LIN_POT_3_RL",
+     "ADC AIN 10 - Channel 7",
+     "ADC AIN 11 - Channel 8, LIN_POT_4_RR",
+     "ADC AIN 12 - Channel 9, STEERING_POT_2",
+     "ADC AIN 13 - Channel 10",
+     "ADC AIN 14 - Monitor 5v should be 4.35",
+     "ADC AIN 15 - TWO_5_REF",
+     "DIN 0",
+     "DIN 1",
+     "DIN 2",
+     "DIN 3",
+     "DIN 4",
+     "DIN 5",
+     "WSG0_SG0",
+     "WSG0_SG1",
+     "WSG0_SG2",
+     "WSG1_SG0",
+     "WSG1_SG1",
+     "WSG1_SG2",
+     "MISC 0 - System temperature",
+     "MISC 1 - Power supply",
+     "MISC 2 - CPU load",
+     "MISC 3 - Memory usage",
+     "MISC 4",
+     "MISC 5",
+     "MISC 6", 
+     "MISC 7"
+ };
+ 
+ /**
+  * @brief Map ADC channel (AIN) index to internal channel ID
+  * 
+  * @param adcChannel The ADC channel index (0-15)
+  * @return The corresponding internal channel ID
+  */
+ inline InternalChannelID mapADCToInternalID(uint8_t adcChannel) {
+     if (adcChannel <= 15) {
+         return static_cast<InternalChannelID>(adcChannel);
+     }
+     return InternalChannelID::UNKNOWN;
+ }
+ 
+ /**
+  * @brief Get the string representation of a channel ID
+  * 
+  * @param channelID The internal channel ID
+  * @return String representation with descriptive name
+  */
+ inline std::string getChannelName(InternalChannelID channelID) {
+     uint8_t index = static_cast<uint8_t>(channelID);
+     if (index < TOTAL_CHANNEL_COUNT) {
+         return CHANNEL_NAMES[index];
+     }
+     return "Unknown Channel";
+ }
+ 
+ /**
+  * @brief Get the string representation of a channel ID from raw uint8_t
+  * 
+  * @param channelID The internal channel ID as uint8_t
+  * @return String representation with descriptive name
+  */
+ inline std::string getChannelName(uint8_t channelID) {
+     if (channelID < TOTAL_CHANNEL_COUNT) {
+         return CHANNEL_NAMES[channelID];
+     }
+     return "Unknown Channel";
+ }
+ 
+ /**
+  * @brief Check if a channel should be enabled by default
+  * 
+  * @param channelID The internal channel ID
+  * @return true if the channel should be enabled by default
+  */
+ inline bool shouldChannelBeEnabled(InternalChannelID channelID) {
+     uint8_t id = static_cast<uint8_t>(channelID);
+     
+     // Specialized enabling logic for different channel types
+     if (id <= 15) {
+        // return true;
+         // ADC channels - enable all data channels but not reference channels
+         return shouldADCChannelBeEnabled(static_cast<ChannelName>(id));
+         switch (id) {
+             case 0: // Ground reference
+             case 1: // 5V reference
+             case 2: // 2.5V reference
+             case 3: // 2.5V reference (buffered)
+                 return false;
+             case 4: // Strain gauge 2
+             case 5: // Strain gauge 1
+                 return true; // Enable strain gauges by default
+             default:
+                 return true; // Enable all other ADC channels
+         }
+     } 
+     else if (id >= 16 && id <= 21) {
+         // Digital channels - enable all by default
+         return true;
+     }
+     else if (id >= 22 && id <= 27) {
+        // wsg channels
+        return true;
+     }
+     else if (id >= 28 && id <= 36) {
+         // Misc channels - disable by default, enable programmatically as needed
+         return false;
+     }
+     
+     return false;
+ }
+ 
+ /**
+  * @brief Generate a CSV mapping header with all channel mappings
+  * 
+  * Creates a commented line for the CSV file that maps all channel IDs to names
+  * 
+  * @return String containing the CSV mapping header
+  */
+ inline std::string generateChannelMappingHeader() {
+     std::string header = "# Channel ID mappings: ";
+     
+     for (uint8_t i = 0; i < TOTAL_CHANNEL_COUNT; i++) {
+         header += std::to_string(i) + ":\"" + CHANNEL_NAMES[i] + "\"";
+         if (i < TOTAL_CHANNEL_COUNT - 1) {
+             header += ", ";
+         }
+     }
+     
+     return header + "\r\n";
+ }
+ 
+ } // namespace util
+ } // namespace baja
