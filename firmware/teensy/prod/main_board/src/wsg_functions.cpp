@@ -58,7 +58,7 @@ void process() {
                     fastBuffer_->write(channelSample);
                 }
             }
-            // // add stuff to channel
+            // add stuff to channel
             for (wsg_data_t wsg : msgs) {
                 util::Debug::info(F("id: ") + String(wsg.wsg_id));
                 util::Debug::info(F("Timestamp: ") + String(wsg.timestamp));
@@ -77,5 +77,5 @@ void process() {
     }
 }
 
-}
-}
+} // namespace wsg_streaming
+} // namespace baja

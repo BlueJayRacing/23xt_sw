@@ -147,26 +147,10 @@ bool process() {
         // Check if counter was incremented or if sampling interval has elapsed
         // We need to disable interrupts temporarily for reading the volatile flag
         noInterrupts();
-        // bool is_high = digitalRead(digital_pins[i]) == HIGH;
-        // if (true || i == 0) {
-        //     util::Debug::info(F("Channel ") + String(i) + F(" is high: ") + String(is_high));
-        // }
         bool needSample = digitalCounterIncremented_[i] || (currentTimeMs - lastSampleTimeMs_[i] >= SAMPLE_INTERVAL_MS);
 
         if (needSample) {
-            // // Read the counter value
-            // if(is_high && !digital_prev[i]) {
-            //     digitalCounters_[i]++;
-            // }
-
-            // digital_prev[i] = is_high;
-
-            // if (!(currentTimeMs - lastSampleTimeMs_[i] >= SAMPLE_INTERVAL_MS)) continue;
-
             uint32_t counterValue = digitalCounters_[i];
-            // if (counterValue != 0) {
-            //     util::Debug::info(F("Got count: ") + String(counterValue) + F(" on channel: ") + String(i));
-            // }
 
             if (digitalCounterIncremented_[i]) {
                 util::Debug::info(F("Digital channel: ") + String(i) + F(" with count: ") + String(counterValue));
