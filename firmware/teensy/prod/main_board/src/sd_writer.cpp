@@ -1,8 +1,7 @@
-#include "storage/sd_writer.hpp"
-#include "storage/sd_functions.hpp"
+#include "sd_writer.hpp"
 #include "util/debug_util.hpp"
 #include <TimeLib.h>
-#include "util/teensy_mapping.hpp"
+#include "util/mapping.hpp"
 
 namespace baja {
 namespace storage {

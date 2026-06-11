@@ -1,5 +1,4 @@
-#include "network/pbudp_handler.hpp"
-#include "network/pbudp_functions.hpp"
+#include "pbudp_handler.hpp"
 #include "util/debug_util.hpp"
 #include "pb_encode.h"
 #include "teensy_data.pb.h"

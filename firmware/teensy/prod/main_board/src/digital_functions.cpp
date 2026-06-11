@@ -1,6 +1,6 @@
-#include "digital/digital_functions.hpp"
+#include "digital_functions.hpp"
 #include "util/debug_util.hpp"
-#include "util/time_since_epoch.hpp" // For high-precision timestamps
+#include "util/sample_data.hpp" // For high-precision timestamps
 
 namespace baja {
 namespace digital {
@@ -166,7 +166,7 @@ bool process() {
             lastSampleTimeMs_[i] = currentTimeMs;
             
             // Get a high-precision timestamp for this sample
-            uint64_t timestampMicros = getMicrosecondsSinceEpoch();
+            uint64_t timestampMicros = util::getMicrosecondsSinceEpoch();
             
             // Create a channel sample with internal ID and timestamp
             data::ChannelSample channelSample(

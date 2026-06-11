@@ -1,4 +1,4 @@
-#include "wsg/wsg_functions.hpp"
+#include "wsg_functions.hpp"
 #include "util/debug_util.hpp"
 
 namespace baja {

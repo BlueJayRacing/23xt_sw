@@ -1,7 +1,6 @@
-#include "adc/adc_functions.hpp"
-#include "adc/adc_handler.hpp"
+#include "adc_handler.hpp"
 #include "util/debug_util.hpp"
-#include "util/time_since_epoch.hpp"
+#include "util/sample_data.hpp"
 
 namespace baja {
 namespace adc {
@@ -229,7 +228,7 @@ int ADC7175Handler::pollForSample(uint32_t timeout_ms) {
 
     // Cache the conversion result
     lastConversion_ = sample;
-    lastConversionTime_ = getMicrosecondsSinceEpoch();
+    lastConversionTime_ = util::getMicrosecondsSinceEpoch();
     
     // Calculate read time
     uint32_t read_time = micros() - read_start;
@@ -241,7 +240,7 @@ int ADC7175Handler::pollForSample(uint32_t timeout_ms) {
     
 
     if (internalChannelId > 15) {
-        util::Debug::info(F("WHAT THE FUCK IS HAPPENING RN!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1"));
+        util::Debug::info(F("WHAT THE DUCK IS HAPPENING RN!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1"));
     }
 
     if(lastConversionTime_ == 0) {

@@ -1,9 +1,8 @@
 #pragma once
 
-#include "util/ring_buffer.hpp"
-#include "util/circular_buffer.hpp"
+#include "util/buffer.hpp"
 #include "util/sample_data.hpp"
-#include "config/config.hpp"
+#include "config.hpp"
 #include <Arduino.h>
 
 namespace baja {

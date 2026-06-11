@@ -5,10 +5,10 @@
 #include <RingBuf.h>
 #include <string>
 #include <vector>
-#include "util/ring_buffer.hpp"
+#include "util/buffer.hpp"
 #include "util/sample_data.hpp"
-#include "adc/adc_channel_config.hpp"
-#include "config/config.hpp"
+#include "adc_handler.hpp"
+#include "config.hpp"
 #include "util/debug_util.hpp"
 
 namespace baja {

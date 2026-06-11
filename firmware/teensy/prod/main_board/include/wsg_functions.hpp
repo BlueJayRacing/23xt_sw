@@ -1,9 +1,8 @@
 #include "recv_wsg_data.hpp"
 #include <spi_ntp.hpp>
-#include "util/ring_buffer.hpp"
-#include "util/circular_buffer.hpp"
+#include "util/buffer.hpp"
 #include "util/sample_data.hpp"
-#include "config/config.hpp"
+#include "config.hpp"
 #include <array>
 
 namespace baja {

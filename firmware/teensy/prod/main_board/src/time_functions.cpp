@@ -1,6 +1,6 @@
 // src/ntp/time_functions.cpp
-#include "ntp/time_functions.hpp"
-#include "config/defines.h"       // for configuration and thresholds
+#include "time_functions.hpp"
+#include "config.hpp"       // for configuration and thresholds
 #include "util/debug_util.hpp"    // for logging (baja::util::Debug)
 #include <stdlib.h>
 

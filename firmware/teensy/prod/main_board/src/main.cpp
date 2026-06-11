@@ -6,25 +6,23 @@
 #include <AsyncUDP_Teensy41.h> // need to include h once in main and hpp elsewhere where needed 
 
 // Configuration
-#include "config/config.hpp"
-#include "config/defines.h"
+#include "config.hpp"
 
 // Utilities
-#include "util/ring_buffer.hpp"
-#include "util/circular_buffer.hpp"
+#include "util/buffer.hpp"
 #include "util/sample_data.hpp"
 #include "util/debug_util.hpp"
-#include "util/channel_mapping.hpp"
+#include "util/mapping.hpp"
 
 // Thread modules
-#include "adc/adc_functions.hpp"
-#include "storage/sd_functions.hpp"
-#include "network/pbudp_functions.hpp"      // Combined PB+UDP thread
-#include "digital/digital_functions.hpp"    // Digital input monitoring
-#include "wsg/wsg_functions.hpp"
+#include "adc_handler.hpp"
+#include "sd_writer.hpp"
+#include "pbudp_handler.hpp"      // Combined PB+UDP thread
+#include "digital_functions.hpp"    // Digital input monitoring
+#include "wsg_functions.hpp"
 
 // NEW: Time functions module (our NTP/SRTC updater)
-#include "ntp/time_functions.hpp"
+#include "time_functions.hpp"
 
 // #define ESP_TIMESYNC
 
