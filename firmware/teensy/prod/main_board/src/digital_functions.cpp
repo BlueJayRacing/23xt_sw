@@ -4,13 +4,12 @@
 
 namespace baja {
 namespace digital {
-namespace functions {
 
 // Static variables to maintain state
 static bool running_ = false;
 static uint64_t sampleCount_ = 0;
-static buffer::RingBuffer<data::ChannelSample, config::SAMPLE_RING_BUFFER_SIZE>* mainBuffer_ = nullptr;
-static buffer::CircularBuffer<data::ChannelSample, config::FAST_BUFFER_SIZE>* fastBuffer_ = nullptr;
+static util::buffer::RingBuffer<util::data::ChannelSample, config::SAMPLE_RING_BUFFER_SIZE>* mainBuffer_ = nullptr;
+static util::buffer::CircularBuffer<util::data::ChannelSample, config::FAST_BUFFER_SIZE>* fastBuffer_ = nullptr;
 
 // Timing statistics
 static uint32_t totalProcessingTime_ = 0;
@@ -39,8 +38,8 @@ FASTRUN static void isr_d5() {if (!digitalCounterIncremented_[4]) digitalCounter
 FASTRUN static void isr_d6() {if (!digitalCounterIncremented_[5]) digitalCounters_[5]++; digitalCounterIncremented_[5] = true; } // if (!digitalCounterIncremented_[5]) 
 
 bool initialize(
-    buffer::RingBuffer<data::ChannelSample, config::SAMPLE_RING_BUFFER_SIZE>& mainBuffer,
-    buffer::CircularBuffer<data::ChannelSample, config::FAST_BUFFER_SIZE>& fastBuffer) {
+    util::buffer::RingBuffer<util::data::ChannelSample, config::SAMPLE_RING_BUFFER_SIZE>& mainBuffer,
+    util::buffer::CircularBuffer<util::data::ChannelSample, config::FAST_BUFFER_SIZE>& fastBuffer) {
     
     util::Debug::info(F("Digital: Initializing"));
     
@@ -166,10 +165,10 @@ bool process() {
             lastSampleTimeMs_[i] = currentTimeMs;
             
             // Get a high-precision timestamp for this sample
-            uint64_t timestampMicros = util::getMicrosecondsSinceEpoch();
+            uint64_t timestampMicros = util::data::getMicrosecondsSinceEpoch();
             
             // Create a channel sample with internal ID and timestamp
-            data::ChannelSample channelSample(
+            util::data::ChannelSample channelSample(
                 timestampMicros,                // Microsecond timestamp
                 DIGITAL_CHANNEL_ID_START + i,   // Internal channel ID (16-21)
                 counterValue,                   // Raw counter value
@@ -255,6 +254,5 @@ uint64_t getSampleCount() {
     return sampleCount_;
 }
 
-} // namespace functions
 } // namespace digital
 } // namespace baja

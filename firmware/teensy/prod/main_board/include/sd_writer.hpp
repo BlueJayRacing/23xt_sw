@@ -7,7 +7,7 @@
 #include <vector>
 #include "util/buffer.hpp"
 #include "util/sample_data.hpp"
-#include "adc_handler.hpp"
+#include "adc_functions.hpp"
 #include "config.hpp"
 #include "util/debug_util.hpp"
 
@@ -29,7 +29,7 @@ public:
      * @param ringBuffer Reference to the sample ring buffer
      * @param sdRingBuf Pointer to the SdFat RingBuf buffer
      */
-    SDWriter(buffer::RingBuffer<data::ChannelSample, config::SAMPLE_RING_BUFFER_SIZE>& ringBuffer, 
+    SDWriter(util::buffer::RingBuffer<util::data::ChannelSample, config::SAMPLE_RING_BUFFER_SIZE>& ringBuffer, 
              RingBuf<FsFile, config::SD_RING_BUF_CAPACITY>* sdRingBuf);
     
     /**
@@ -141,7 +141,7 @@ public:
 
     static Threads::Mutex mutex_;
 private:
-    buffer::RingBuffer<data::ChannelSample, config::SAMPLE_RING_BUFFER_SIZE>& dataBuffer_;
+    util::buffer::RingBuffer<util::data::ChannelSample, config::SAMPLE_RING_BUFFER_SIZE>& dataBuffer_;
     SdFs sd_;
     FsFile dataFile_;
     RingBuf<FsFile, config::SD_RING_BUF_CAPACITY>* ringBuf_;
@@ -171,7 +171,7 @@ private:
     
     std::string generateFilename() const;
     bool writeHeader();
-    bool writeSampleToRingBuf(const data::ChannelSample& sample);
+    bool writeSampleToRingBuf(const util::data::ChannelSample& sample);
     bool syncRingBuf(bool forceFullSync = false);
     void recordError(int errorCode, const char* errorMessage);
 
@@ -196,7 +196,7 @@ namespace functions {
      * @return true if initialization was successful
      */
     bool initialize(
-        buffer::RingBuffer<data::ChannelSample, config::SAMPLE_RING_BUFFER_SIZE>& ringBuffer,
+        util::buffer::RingBuffer<util::data::ChannelSample, config::SAMPLE_RING_BUFFER_SIZE>& ringBuffer,
         RingBuf<FsFile, config::SD_RING_BUF_CAPACITY>* sdRingBuf,
         uint8_t chipSelect = 254);
     

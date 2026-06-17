@@ -15,9 +15,9 @@
 #include "util/mapping.hpp"
 
 // Thread modules
-#include "adc_handler.hpp"
+#include "adc_functions.hpp"
 #include "sd_writer.hpp"
-#include "pbudp_handler.hpp"      // Combined PB+UDP thread
+#include "pbudp_functions.hpp"      // Combined PB+UDP thread
 #include "digital_functions.hpp"    // Digital input monitoring
 #include "wsg_functions.hpp"
 
@@ -37,18 +37,18 @@ const char* UDP_SERVER_ADDRESS = "192.168.20.3";
 const uint16_t UDP_SERVER_PORT = 8888;
 
 // Create global buffers in RAM2/EXTMEM to reduce RAM1 usage
-baja::data::ChannelSample ringBufferStorage[baja::config::SAMPLE_RING_BUFFER_SIZE];
+baja::util::data::ChannelSample ringBufferStorage[baja::config::SAMPLE_RING_BUFFER_SIZE];
 baja::adc::ChannelConfig channelConfigsArray[baja::adc::ADC_CHANNEL_COUNT];
 
 // Define the SdFat RingBuf in EXTMEM
 RingBuf<FsFile, baja::config::SD_RING_BUF_CAPACITY> sdRingBuf;
 
 // Fast path buffer in DMAMEM for low-latency network transmission
-DMAMEM baja::data::ChannelSample fastBufferStorage[baja::config::FAST_BUFFER_SIZE];
+DMAMEM baja::util::data::ChannelSample fastBufferStorage[baja::config::FAST_BUFFER_SIZE];
 
 // Create all the ring buffers with external storage
-baja::buffer::RingBuffer<baja::data::ChannelSample, baja::config::SAMPLE_RING_BUFFER_SIZE> sampleBuffer(ringBufferStorage);
-baja::buffer::CircularBuffer<baja::data::ChannelSample, baja::config::FAST_BUFFER_SIZE> fastBuffer(fastBufferStorage);
+baja::util::buffer::RingBuffer<baja::util::data::ChannelSample, baja::config::SAMPLE_RING_BUFFER_SIZE> sampleBuffer(ringBufferStorage);
+baja::util::buffer::CircularBuffer<baja::util::data::ChannelSample, baja::config::FAST_BUFFER_SIZE> fastBuffer(fastBufferStorage);
 
 // Global status flags
 bool adcInitialized = false;
@@ -156,8 +156,8 @@ void printSystemStatus() {
     }
     
     // Print digital input status
-    if (digitalInitialized && baja::digital::functions::isRunning()) {
-        uint64_t sampleCount = baja::digital::functions::getSampleCount();
+    if (digitalInitialized && baja::digital::isRunning()) {
+        uint64_t sampleCount = baja::digital::getSampleCount();
         
         baja::util::Debug::info(F("Digital: Samples: ") + String(sampleCount));
         
@@ -165,7 +165,7 @@ void printSystemStatus() {
         float avgTime;
         uint32_t minTime, maxTime;
         uint64_t sampleCountTiming;
-        baja::digital::functions::getTimingStats(avgTime, minTime, maxTime, sampleCountTiming);
+        baja::digital::getTimingStats(avgTime, minTime, maxTime, sampleCountTiming);
         
         baja::util::Debug::info(F("Digital Timing: avg=") + String(avgTime, 1) + 
                             F("µs, min=") + String(minTime) + 
@@ -211,9 +211,9 @@ void printSystemStatus() {
     }
     
     // Print network status
-    if (networkInitialized && baja::network::functions::isRunning()) {
+    if (networkInitialized && baja::network::isRunning()) {
         uint32_t messagesSent = 0, sampleCount = 0, bytesTransferred = 0, sendErrors = 0;
-        baja::network::functions::getStats(messagesSent, sampleCount, bytesTransferred, sendErrors);
+        baja::network::getStats(messagesSent, sampleCount, bytesTransferred, sendErrors);
         
         float samplesPerMsg = messagesSent > 0 ? (float)sampleCount / messagesSent : 0;
         float msgsPerSec = messagesSent / ((currentTime - startTime) / 1000.0f);
@@ -229,7 +229,7 @@ void printSystemStatus() {
         // Print network timing stats
         float avgTime;
         uint32_t minTime, maxTime, messageCount;
-        baja::network::functions::getTimingStats(avgTime, minTime, maxTime, messageCount);
+        baja::network::getTimingStats(avgTime, minTime, maxTime, messageCount);
         
         baja::util::Debug::info(F("Network Timing: avg=") + String(avgTime, 1) + 
                              F("µs, min=") + String(minTime) + 
@@ -295,7 +295,7 @@ void setup() {
 
     // Initialize digital inputs
     baja::util::Debug::info(F("Initializing digital inputs..."));
-    digitalInitialized = baja::digital::functions::initialize(
+    digitalInitialized = baja::digital::initialize(
         sampleBuffer,
         fastBuffer
     );
@@ -305,7 +305,7 @@ void setup() {
         
         // Start digital monitoring
         baja::util::Debug::info(F("Starting digital input monitoring..."));
-        if (!baja::digital::functions::start()) {
+        if (!baja::digital::start()) {
             baja::util::Debug::error(F("Failed to start digital input monitoring!"));
             digitalInitialized = false;
         } else {
@@ -401,7 +401,7 @@ void setup() {
         baja::util::Debug::info(F("Initializing network..."));
         baja::util::Debug::info(F("Server: ") + String(UDP_SERVER_ADDRESS) + F(":") + String(UDP_SERVER_PORT));
         
-        networkInitialized = baja::network::functions::initialize(
+        networkInitialized = baja::network::initialize(
             fastBuffer,
             UDP_SERVER_ADDRESS,
             UDP_SERVER_PORT
@@ -412,7 +412,7 @@ void setup() {
             
             // Start network operations
             baja::util::Debug::info(F("Starting network operations..."));
-            if (!baja::network::functions::start()) {
+            if (!baja::network::start()) {
                 baja::util::Debug::error(F("Failed to start network operations!"));
                 networkInitialized = false;
             } else {
@@ -426,7 +426,7 @@ void setup() {
     
 
     // Initialize time functions
-    baja::time::functions::initialize();
+    baja::time::initialize();
     
     // Log configuration summary
     baja::util::Debug::info(F("\n========== CONFIGURATION SUMMARY =========="));
@@ -457,14 +457,14 @@ void loop() {
     }
     
     // Process digital inputs every cycle
-    if (digitalInitialized && baja::digital::functions::isRunning()) {
-        baja::digital::functions::process();
-    } else if (!baja::digital::functions::isRunning()) {
+    if (digitalInitialized && baja::digital::isRunning()) {
+        baja::digital::process();
+    } else if (!baja::digital::isRunning()) {
         baja::util::Debug::info(F("Digital not running"));
     }
 
     // // sampleBuffer
-    // baja::data::ChannelSample channelSample(
+    // baja::util::data::ChannelSample channelSample(
     //     1,// Microsecond timestamp
     //     1,          // Internal channel ID
     //     1,               // Raw ADC value
@@ -490,8 +490,8 @@ void loop() {
     
     // Process network operations - only if enough samples are available
     // (This is already handled in PBUDPHandler::processAndSendBatch())
-    if (networkInitialized && baja::network::functions::isRunning() && loopCount % 5 == 1) {
-        size_t sent = baja::network::functions::process();
+    if (networkInitialized && baja::network::isRunning() && loopCount % 5 == 1) {
+        size_t sent = baja::network::process();
     }
     //     if (sent == (size_t)-1) {
     //         systemState = baja::led::SystemState::NO_CONNECTION;;
@@ -506,7 +506,7 @@ void loop() {
 
     static bool ntpSynced = false;
     if (networkInitialized && loopCount % 100 == 2 && !ntpSynced) {
-        baja::time::functions::update();
+        baja::time::update();
         ntpSynced = true;
     }
     

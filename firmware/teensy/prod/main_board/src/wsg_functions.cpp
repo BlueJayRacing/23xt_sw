@@ -4,8 +4,8 @@
 namespace baja {
 namespace wsg_streaming {
 
-static buffer::CircularBuffer<data::ChannelSample, config::FAST_BUFFER_SIZE>* fastBuffer_ = nullptr;
-static buffer::RingBuffer<data::ChannelSample, config::SAMPLE_RING_BUFFER_SIZE>* mainBuffer_ = nullptr;
+static util::buffer::CircularBuffer<util::data::ChannelSample, config::FAST_BUFFER_SIZE>* fastBuffer_ = nullptr;
+static util::buffer::RingBuffer<util::data::ChannelSample, config::SAMPLE_RING_BUFFER_SIZE>* mainBuffer_ = nullptr;
 
 static SpiWsgRecv data_recv;
 static NTPviaSPI sync_handler;
@@ -19,8 +19,8 @@ static int sync_rate = 10;
 static bool override_sync = false;
 
 void init(SPIClass * spi_interface, uint8_t cs_pin, uint8_t handshake_pin, SPISettings settings,
-    buffer::RingBuffer<data::ChannelSample, config::SAMPLE_RING_BUFFER_SIZE>& mainBuffer,
-    buffer::CircularBuffer<data::ChannelSample, config::FAST_BUFFER_SIZE>& fastBuffer
+    util::buffer::RingBuffer<util::data::ChannelSample, config::SAMPLE_RING_BUFFER_SIZE>& mainBuffer,
+    util::buffer::CircularBuffer<util::data::ChannelSample, config::FAST_BUFFER_SIZE>& fastBuffer
 ) {
     fastBuffer_ = &fastBuffer;
     mainBuffer_ = &mainBuffer;
@@ -46,7 +46,7 @@ void process() {
 
                 uint8_t base_id = msgs[w].wsg_id == 0 ? util::WSG0_BASE_CHANNEL_ID : util::WSG1_BASE_CHANNEL_ID;
                 for(int i = 0; i < 3; i++) {
-                    data::ChannelSample channelSample(
+                    util::data::ChannelSample channelSample(
                         msgs[w].timestamp,
                         base_id + i,
                         msgs[w].sample[i],

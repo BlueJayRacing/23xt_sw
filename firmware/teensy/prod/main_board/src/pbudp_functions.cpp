@@ -1,32 +1,29 @@
-#include "pbudp_handler.hpp"
+#include "pbudp_functions.hpp"
 #include "util/debug_util.hpp"
+#include "util/timing_stats.hpp"
 #include "pb_encode.h"
 #include "teensy_data.pb.h"
 
 
 #define LinkStatus_kLinkStatusUp 1
 // #define USING_DHCP true
+using namespace qindesign::network;
 
 namespace baja {
 namespace network {
-namespace functions {
 
 // Static variables to maintain state
 static PBUDPHandler* handler_ = nullptr;
 static bool running_ = false;
 
 // Timing statistics
-static uint32_t totalProcessingTime_ = 0;
-static uint32_t minProcessingTime_ = UINT32_MAX;
-static uint32_t maxProcessingTime_ = 0;
-static uint32_t processingCount_ = 0;
-static uint32_t lastStatResetTime_ = 0;
+static util::TimingStats timing_;
 
 // Minimum samples needed for processing
 static const size_t MIN_SAMPLES_FOR_PROCESSING = config::FIXED_SAMPLE_COUNT;
 
 bool initialize(
-    buffer::CircularBuffer<data::ChannelSample, config::FAST_BUFFER_SIZE>& sourceBuffer,
+    util::buffer::CircularBuffer<util::data::ChannelSample, config::FAST_BUFFER_SIZE>& sourceBuffer,
     const char* serverAddress,
     uint16_t port) {
     
@@ -105,19 +102,8 @@ size_t process() {
     // Only update timing statistics if we actually did work (sent samples)
     if (samplesProcessed > 0) {
         uint32_t processingTime = micros() - startTime;
-        
-        // Update statistics
-        totalProcessingTime_ += processingTime;
-        processingCount_++;
-        
-        if (processingTime < minProcessingTime_) {
-            minProcessingTime_ = processingTime;
-        }
-        
-        if (processingTime > maxProcessingTime_) {
-            maxProcessingTime_ = processingTime;
-        }
-        
+        timing_.record(processingTime);
+
         // Log detailed info for large batches or slow processing
         if (samplesProcessed > 10 || processingTime > 1000) {
             util::Debug::detail(F("PBUDP: Processed ") + String(samplesProcessed) + 
@@ -148,25 +134,15 @@ void getStats(uint32_t& messagesSent, uint32_t& sampleCount,
 }
 
 void getTimingStats(float& avgTime, uint32_t& minTime, uint32_t& maxTime, uint32_t& messageCount) {
-    avgTime = processingCount_ > 0 ? (float)totalProcessingTime_ / processingCount_ : 0.0f;
-    minTime = minProcessingTime_ == UINT32_MAX ? 0 : minProcessingTime_;
-    maxTime = maxProcessingTime_;
-    messageCount = processingCount_;
+    timing_.get(avgTime, minTime, maxTime, messageCount);
 }
 
 void resetTimingStats() {
-    totalProcessingTime_ = 0;
-    minProcessingTime_ = UINT32_MAX;
-    maxProcessingTime_ = 0;
-    processingCount_ = 0;
-    lastStatResetTime_ = millis();
+    timing_.reset();
 }
 
-} // namespace functions
 
-using namespace qindesign::network;
-
-PBUDPHandler::PBUDPHandler(buffer::CircularBuffer<data::ChannelSample, config::FAST_BUFFER_SIZE>& sourceBuffer)
+PBUDPHandler::PBUDPHandler(util::buffer::CircularBuffer<util::data::ChannelSample, config::FAST_BUFFER_SIZE>& sourceBuffer)
     : sourceBuffer_(sourceBuffer),
       messagesSent_(0),
       sampleCount_(0),
@@ -399,7 +375,7 @@ size_t PBUDPHandler::processAndSendBatch() {
     return actualSamples;
 }
 
-bool PBUDPHandler::encodeSamples(const data::ChannelSample* samples, size_t count, 
+bool PBUDPHandler::encodeSamples(const util::data::ChannelSample* samples, size_t count, 
         uint8_t* outputBuffer, size_t& outputSize) {
     if (count > config::FIXED_SAMPLE_COUNT) {
         util::Debug::error("PBUDPHandler: Invalid sample count: " + String(count) + 
@@ -441,7 +417,7 @@ static inline size_t varint_size(uint32_t value) {
 }
 
 bool PBUDPHandler::encodeDataChunk(uint8_t* buffer, size_t bufferSize,
-        const data::ChannelSample* samples, size_t count,
+        const util::data::ChannelSample* samples, size_t count,
         size_t& outputSize) {
     // Create a stream that writes directly into the output buffer.
     pb_ostream_t stream = pb_ostream_from_buffer(buffer, bufferSize);
@@ -497,10 +473,6 @@ bool PBUDPHandler::encodeDataChunk(uint8_t* buffer, size_t bufferSize,
     outputSize = stream.bytes_written;
     return true;
 }
-
-
-
-
 
 bool PBUDPHandler::sendEncodedData(const uint8_t* data, size_t size) {
     // Check if message is too large for UDP

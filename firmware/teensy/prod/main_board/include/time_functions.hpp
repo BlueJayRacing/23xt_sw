@@ -7,7 +7,6 @@
 
 namespace baja {
 namespace time {
-namespace functions {
 
 /**
  * @brief Initialize the time functions module (NTP UDP client).
@@ -36,6 +35,5 @@ void update();
  */
 time_t getLastNTPTime();
 
-} // namespace functions
 } // namespace time
 } // namespace baja

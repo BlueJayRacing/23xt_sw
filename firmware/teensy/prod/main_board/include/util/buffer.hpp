@@ -6,6 +6,7 @@
 #include <cstring>
 
 namespace baja {
+namespace util {
 namespace buffer {
 
 /**
@@ -602,4 +603,5 @@ private:
 };
 
 } // namespace buffer
+} // namespace util
 } // namespace baja

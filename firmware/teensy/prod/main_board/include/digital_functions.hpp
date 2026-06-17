@@ -24,8 +24,6 @@ constexpr uint8_t DIGITAL_CHANNEL_COUNT = 6;
 // Internal channel IDs for digital channels (matching the mapping in teensy_mapping.hpp)
 constexpr uint8_t DIGITAL_CHANNEL_ID_START = 16; // As per the mapping
 
-namespace functions {
-
 /**
  * @brief Initialize the digital input module
  * 
@@ -34,8 +32,8 @@ namespace functions {
  * @return true if initialization was successful
  */
 bool initialize(
-    buffer::RingBuffer<data::ChannelSample, config::SAMPLE_RING_BUFFER_SIZE>& mainBuffer,
-    buffer::CircularBuffer<data::ChannelSample, config::FAST_BUFFER_SIZE>& fastBuffer);
+    util::buffer::RingBuffer<util::data::ChannelSample, config::SAMPLE_RING_BUFFER_SIZE>& mainBuffer,
+    util::buffer::CircularBuffer<util::data::ChannelSample, config::FAST_BUFFER_SIZE>& fastBuffer);
 
 /**
  * @brief Start digital input monitoring
@@ -86,8 +84,6 @@ void resetTimingStats();
  * @return Number of samples processed
  */
 uint64_t getSampleCount();
-
-} // namespace functions
 
 } // namespace digital
 } // namespace baja

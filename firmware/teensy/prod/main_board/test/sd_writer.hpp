@@ -7,7 +7,7 @@
 #include <vector>
 #include "util/buffer.hpp"
 #include "util/sample_data.hpp"
-#include "adc_handler.hpp"
+#include "adc_functions.hpp"
 #include "config.hpp"
 #include "util/debug_util.hpp"
 

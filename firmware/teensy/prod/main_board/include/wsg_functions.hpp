@@ -9,8 +9,8 @@ namespace baja {
 namespace wsg_streaming {
 
 void init(SPIClass * spi_interface, uint8_t cs_pin, uint8_t handshake_pin, SPISettings settings,
-    buffer::RingBuffer<data::ChannelSample, config::SAMPLE_RING_BUFFER_SIZE>& mainBuffer,
-    buffer::CircularBuffer<data::ChannelSample, config::FAST_BUFFER_SIZE>& fastBuffer
+    util::buffer::RingBuffer<util::data::ChannelSample, config::SAMPLE_RING_BUFFER_SIZE>& mainBuffer,
+    util::buffer::CircularBuffer<util::data::ChannelSample, config::FAST_BUFFER_SIZE>& fastBuffer
 );
 
 void process();

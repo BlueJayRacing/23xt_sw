@@ -207,7 +207,6 @@ static void ntpPacketCallback(AsyncUDPPacket packet) {
 // --- Public API Functions ---
 namespace baja {
 namespace time {
-namespace functions {
 
 bool initialize() {
     lastNTPRequestTime = millis();
@@ -235,6 +234,5 @@ time_t getLastNTPTime() {
     return lastSuccessfulNTPTime;
 }
 
-} // namespace functions
 } // namespace time
 } // namespace baja

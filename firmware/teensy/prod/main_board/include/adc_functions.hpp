@@ -140,7 +140,7 @@ public:
      * 
      * @param ringBuffer Reference to the ring buffer to store samples
      */
-    ADC7175Handler(buffer::RingBuffer<data::ChannelSample, baja::config::SAMPLE_RING_BUFFER_SIZE>& ringBuffer);
+    ADC7175Handler(util::buffer::RingBuffer<util::data::ChannelSample, baja::config::SAMPLE_RING_BUFFER_SIZE>& ringBuffer);
     
     /**
      * @brief Destroy the ADC7175Handler
@@ -241,7 +241,7 @@ public:
     }
 
 private:
-    buffer::RingBuffer<data::ChannelSample, baja::config::SAMPLE_RING_BUFFER_SIZE>& ringBuffer_;
+    util::buffer::RingBuffer<util::data::ChannelSample, baja::config::SAMPLE_RING_BUFFER_SIZE>& ringBuffer_;
     AD717X adcDriver_;
     ChannelConfig* channelConfigs_;
     uint8_t csPin_;
@@ -279,8 +279,8 @@ namespace functions {
      * @return true if initialization was successful
      */
     bool initialize(
-        buffer::RingBuffer<data::ChannelSample, config::SAMPLE_RING_BUFFER_SIZE>& mainBuffer,
-        buffer::CircularBuffer<data::ChannelSample, config::FAST_BUFFER_SIZE>& fastBuffer,
+        util::buffer::RingBuffer<util::data::ChannelSample, config::SAMPLE_RING_BUFFER_SIZE>& mainBuffer,
+        util::buffer::CircularBuffer<util::data::ChannelSample, config::FAST_BUFFER_SIZE>& fastBuffer,
         uint8_t csPin,
         SPIClass& spiInterface,
         const ADCSettings& settings = ADCSettings());
@@ -334,7 +334,7 @@ namespace functions {
      * 
      * @return Pointer to the fast buffer
      */
-    buffer::CircularBuffer<data::ChannelSample, config::FAST_BUFFER_SIZE>* getFastBuffer();
+    util::buffer::CircularBuffer<util::data::ChannelSample, config::FAST_BUFFER_SIZE>* getFastBuffer();
     
     /**
      * @brief Get timing statistics for ADC processing

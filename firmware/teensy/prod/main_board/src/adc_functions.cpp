@@ -1,4 +1,4 @@
-#include "adc_handler.hpp"
+#include "adc_functions.hpp"
 #include "util/debug_util.hpp"
 #include "util/sample_data.hpp"
 
@@ -10,7 +10,7 @@ namespace adc {
 #define COMM_ERR    -2 /* Communication error on receive */
 #define TIMEOUT     -3 /* A timeout has occured */
 
-ADC7175Handler::ADC7175Handler(buffer::RingBuffer<data::ChannelSample, baja::config::SAMPLE_RING_BUFFER_SIZE>& ringBuffer)
+ADC7175Handler::ADC7175Handler(util::buffer::RingBuffer<util::data::ChannelSample, baja::config::SAMPLE_RING_BUFFER_SIZE>& ringBuffer)
     : ringBuffer_(ringBuffer),
       csPin_(0),
       spiInterface_(nullptr),
@@ -228,7 +228,7 @@ int ADC7175Handler::pollForSample(uint32_t timeout_ms) {
 
     // Cache the conversion result
     lastConversion_ = sample;
-    lastConversionTime_ = util::getMicrosecondsSinceEpoch();
+    lastConversionTime_ = util::data::getMicrosecondsSinceEpoch();
     
     // Calculate read time
     uint32_t read_time = micros() - read_start;
@@ -253,7 +253,7 @@ int ADC7175Handler::pollForSample(uint32_t timeout_ms) {
 
     // if (internalChannelId == 6) util::Debug::info(F("reading from adc channel: ") + String(internalChannelId) + F(" with value: ") + String(sample.value));
 
-    data::ChannelSample channelSample(
+    util::data::ChannelSample channelSample(
         lastConversionTime_,// Microsecond timestamp
         internalChannelId,          // Internal channel ID
         sample.value,               // Raw ADC value
@@ -393,7 +393,7 @@ namespace functions {
 static ADC7175Handler* adcHandler_ = nullptr;
 static bool running_ = false;
 static uint64_t sampleCount_ = 0;
-static buffer::CircularBuffer<data::ChannelSample, config::FAST_BUFFER_SIZE>* fastBuffer_ = nullptr;
+static util::buffer::CircularBuffer<util::data::ChannelSample, config::FAST_BUFFER_SIZE>* fastBuffer_ = nullptr;
 static uint16_t channelSampleCounters_[util::TOTAL_CHANNEL_COUNT] = {0};
 
 // Timing statistics
@@ -404,8 +404,8 @@ static uint32_t processingCount_ = 0;
 static uint32_t lastStatResetTime_ = 0;
 
 bool initialize(
-    buffer::RingBuffer<data::ChannelSample, config::SAMPLE_RING_BUFFER_SIZE>& mainBuffer,
-    buffer::CircularBuffer<data::ChannelSample, config::FAST_BUFFER_SIZE>& fastBuffer,
+    util::buffer::RingBuffer<util::data::ChannelSample, config::SAMPLE_RING_BUFFER_SIZE>& mainBuffer,
+    util::buffer::CircularBuffer<util::data::ChannelSample, config::FAST_BUFFER_SIZE>& fastBuffer,
     uint8_t csPin,
     SPIClass& spiInterface,
     const ADCSettings& settings) {
@@ -530,7 +530,7 @@ bool processSample() {
             adcHandler_->getLastConversionTime(conversion_time);
             
             // Create a channel sample with internal ID and recorded time
-            data::ChannelSample channelSample(
+            util::data::ChannelSample channelSample(
                 conversion_time,                // Microsecond timestamp
                 internalChannelId,       // Internal channel ID (converted from ADC channel)
                 adcSample.value,         // Raw ADC value
@@ -598,7 +598,7 @@ ADC7175Handler* getHandler() {
     return adcHandler_;
 }
 
-buffer::CircularBuffer<data::ChannelSample, config::FAST_BUFFER_SIZE>* getFastBuffer() {
+util::buffer::CircularBuffer<util::data::ChannelSample, config::FAST_BUFFER_SIZE>* getFastBuffer() {
     return fastBuffer_;
 }
 

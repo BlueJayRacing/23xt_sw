@@ -8,7 +8,7 @@ namespace storage {
 
 Threads::Mutex SDWriter::mutex_;
 
-SDWriter::SDWriter(buffer::RingBuffer<data::ChannelSample, config::SAMPLE_RING_BUFFER_SIZE>& ringBuffer,
+SDWriter::SDWriter(util::buffer::RingBuffer<util::data::ChannelSample, config::SAMPLE_RING_BUFFER_SIZE>& ringBuffer,
         RingBuf<FsFile, config::SD_RING_BUF_CAPACITY>* sdRingBuf)
     : dataBuffer_(ringBuffer),
     ringBuf_(sdRingBuf),
@@ -258,7 +258,7 @@ size_t SDWriter::process() {
     if (isFirstFile_ && availableSamples > 0) {
         shouldWrite = true;
     }
-    if (availableSamples * sizeof(data::ChannelSample) < config::MIN_BYTES_FOR_WRITE && !isFirstFile_) {
+    if (availableSamples * sizeof(util::data::ChannelSample) < config::MIN_BYTES_FOR_WRITE && !isFirstFile_) {
         shouldWrite = false;
         wasBufferFull_ = false;
     }
@@ -288,7 +288,7 @@ size_t SDWriter::process() {
     // Process a batch of samples
     size_t samplesProcessed = 0;
     for (size_t i = 0; i < samplesInBatch; i++) {
-        data::ChannelSample sample;
+        util::data::ChannelSample sample;
         if (dataBuffer_.read(sample)) {        
             // util::Debug::info("Read sample off of buffer: " + String(sample.timestamp));    
             if (writeSampleToRingBuf(sample)) {
@@ -504,7 +504,7 @@ bool SDWriter::writeHeader() {
     return true;
 }
 
-bool SDWriter::writeSampleToRingBuf(const data::ChannelSample& sample) {
+bool SDWriter::writeSampleToRingBuf(const util::data::ChannelSample& sample) {
     // All channels are always enabled for writing in this simplified model
     
     if (config::CUSTOM_STRING_CONVERSION_ROUTINE) {
@@ -784,7 +784,7 @@ static uint32_t lastStatResetTime_ = 0;
 static const size_t MIN_SAMPLES_FOR_PROCESSING = 15;
 
 bool initialize(
-    buffer::RingBuffer<data::ChannelSample, config::SAMPLE_RING_BUFFER_SIZE>& ringBuffer,
+    util::buffer::RingBuffer<util::data::ChannelSample, config::SAMPLE_RING_BUFFER_SIZE>& ringBuffer,
     RingBuf<FsFile, config::SD_RING_BUF_CAPACITY>* sdRingBuf,
     uint8_t chipSelect) {
     
