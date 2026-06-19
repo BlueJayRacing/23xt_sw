@@ -50,8 +50,11 @@ DMAMEM baja::util::data::ChannelSample fastBufferStorage[baja::config::FAST_BUFF
 baja::util::buffer::RingBuffer<baja::util::data::ChannelSample, baja::config::SAMPLE_RING_BUFFER_SIZE> sampleBuffer(ringBufferStorage);
 baja::util::buffer::CircularBuffer<baja::util::data::ChannelSample, baja::config::FAST_BUFFER_SIZE> fastBuffer(fastBufferStorage);
 
-// SD writer instance 
+// SD writer instance
 baja::storage::SDWriter sdWriter(sampleBuffer, &sdRingBuf);
+
+// ADC handler instance
+baja::adc::ADC7175Handler adcHandler(sampleBuffer, fastBuffer);
 
 // Global status flags
 bool adcInitialized = false;
@@ -127,9 +130,9 @@ void printSystemStatus() {
     baja::util::Debug::info(F("Uptime: ") + String((currentTime - startTime) / 1000) + F(" seconds"));
     
     // Print ADC status
-    if (adcInitialized && baja::adc::functions::isRunning()) {
-        uint64_t sampleCount = baja::adc::functions::getSampleCount();
-        uint8_t activeChannel = baja::adc::functions::getActiveChannel();
+    if (adcInitialized && adcHandler.isRunning()) {
+        uint64_t sampleCount = adcHandler.getSampleCount();
+        uint8_t activeChannel = adcHandler.getActiveChannel();
         
         // Calculate samples per second
         static uint64_t lastSampleCount = 0;
@@ -151,7 +154,7 @@ void printSystemStatus() {
         float avgTime;
         uint32_t minTime, maxTime;
         uint64_t sampleCountTiming;
-        baja::adc::functions::getTimingStats(avgTime, minTime, maxTime, sampleCountTiming);
+        adcHandler.getTimingStats(avgTime, minTime, maxTime, sampleCountTiming);
         
         baja::util::Debug::info(F("ADC Timing: avg=") + String(avgTime, 1) + 
                              F("µs, min=") + String(minTime) + 
@@ -361,11 +364,9 @@ void setup() {
     adcSettings.odrSetting = SPS_10000;
     
     // Initialize the ADC
-    adcInitialized = baja::adc::functions::initialize(
-        sampleBuffer,
-        fastBuffer,
-        ADC_CS_PIN, 
-        SPI, 
+    adcInitialized = adcHandler.initialize(
+        ADC_CS_PIN,
+        SPI,
         adcSettings
     );
     
@@ -374,8 +375,8 @@ void setup() {
         
         // Configure ADC channels
         baja::util::Debug::info(F("Configuring ADC channels..."));
-        bool configSuccess = baja::adc::functions::configureChannels(
-            channelConfigsArray, 
+        bool configSuccess = adcHandler.configureChannels(
+            channelConfigsArray,
             baja::adc::ADC_CHANNEL_COUNT
         );
         
@@ -387,7 +388,7 @@ void setup() {
             
             // Start ADC
             baja::util::Debug::info(F("Starting ADC..."));
-            if (!baja::adc::functions::start()) {
+            if (!adcHandler.start()) {
                 baja::util::Debug::error(F("Failed to start ADC!"));
                 adcInitialized = false;
             } else {
@@ -452,9 +453,9 @@ void loop() {
     loopCount++;
 
     // Always process ADC data - highest priority
-    if (adcInitialized && baja::adc::functions::processSample()) {
+    if (adcInitialized && adcHandler.processSample()) {
         samplesProcessedTotal++;
-    } else if (!baja::adc::functions::isRunning()) {
+    } else if (!adcHandler.isRunning()) {
         // baja::util::Debug::info(F("ADC not running"));
     }
     
