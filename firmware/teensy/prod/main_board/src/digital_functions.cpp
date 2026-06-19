@@ -13,11 +13,7 @@ static util::buffer::RingBuffer<util::data::ChannelSample, config::SAMPLE_RING_B
 static util::buffer::CircularBuffer<util::data::ChannelSample, config::FAST_BUFFER_SIZE>* fastBuffer_ = nullptr;
 
 // Timing statistics
-static uint32_t totalProcessingTime_ = 0;
-static uint32_t minProcessingTime_ = UINT32_MAX;
-static uint32_t maxProcessingTime_ = 0;
-static uint32_t processingCount_ = 0;
-static uint32_t lastStatResetTime_ = 0;
+static util::TimingStats timing_;
 
 // Last sample time for each channel
 static uint32_t lastSampleTimeMs_[DIGITAL_CHANNEL_COUNT] = {0};
@@ -218,37 +214,20 @@ bool process() {
     
     // Calculate processing time if we actually did work
     if (samplesProcessed) {
-        uint32_t processingTime = micros() - startTime;
-        
-        // Update statistics
-        totalProcessingTime_ += processingTime;
-        processingCount_++;
-        
-        if (processingTime < minProcessingTime_) {
-            minProcessingTime_ = processingTime;
-        }
-        
-        if (processingTime > maxProcessingTime_) {
-            maxProcessingTime_ = processingTime;
-        }
+        timing_.record(micros() - startTime);
     }
-    
+
     return samplesProcessed;
 }
 
 void getTimingStats(float& avgTime, uint32_t& minTime, uint32_t& maxTime, uint64_t& sampleCount) {
-    avgTime = processingCount_ > 0 ? (float)totalProcessingTime_ / processingCount_ : 0.0f;
-    minTime = minProcessingTime_ == UINT32_MAX ? 0 : minProcessingTime_;
-    maxTime = maxProcessingTime_;
+    uint32_t count;
+    timing_.get(avgTime, minTime, maxTime, count);
     sampleCount = sampleCount_;
 }
 
 void resetTimingStats() {
-    totalProcessingTime_ = 0;
-    minProcessingTime_ = UINT32_MAX;
-    maxProcessingTime_ = 0;
-    processingCount_ = 0;
-    lastStatResetTime_ = millis();
+    timing_.reset();
 }
 
 uint64_t getSampleCount() {

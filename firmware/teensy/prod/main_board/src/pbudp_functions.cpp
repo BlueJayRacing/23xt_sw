@@ -12,136 +12,6 @@ using namespace qindesign::network;
 namespace baja {
 namespace network {
 
-// Static variables to maintain state
-static PBUDPHandler* handler_ = nullptr;
-static bool running_ = false;
-
-// Timing statistics
-static util::TimingStats timing_;
-
-// Minimum samples needed for processing
-static const size_t MIN_SAMPLES_FOR_PROCESSING = config::FIXED_SAMPLE_COUNT;
-
-bool initialize(
-    util::buffer::CircularBuffer<util::data::ChannelSample, config::FAST_BUFFER_SIZE>& sourceBuffer,
-    const char* serverAddress,
-    uint16_t port) {
-    
-    util::Debug::info(F("PBUDP: Initializing"));
-    
-    // Create the handler
-    handler_ = new PBUDPHandler(sourceBuffer);
-    
-    if (!handler_) {
-        util::Debug::error(F("PBUDP: Failed to create handler"));
-        return false;
-    }
-    
-    // Initialize handler with server address and port
-    if (!handler_->initialize(serverAddress, port)) {
-        util::Debug::error(F("PBUDP: Handler initialization failed"));
-        return false;
-    }
-    
-    // Reset timing statistics
-    resetTimingStats();
-    
-    util::Debug::info(F("PBUDP: Initialization successful"));
-    return true;
-}
-
-bool start() {
-    // Check if already running
-    if (running_) {
-        util::Debug::warning(F("PBUDP: Already running"));
-        return true;
-    }
-    
-    // Check if handler is initialized
-    if (!handler_) {
-        util::Debug::error(F("PBUDP: Handler not initialized"));
-        return false;
-    }
-    
-    // Reset timing statistics
-    resetTimingStats();
-    
-    running_ = true;
-    util::Debug::info(F("PBUDP: Started"));
-    return true;
-}
-
-bool stop() {
-    if (!running_) {
-        return true;
-    }
-    
-    running_ = false;
-    util::Debug::info(F("PBUDP: Stopped"));
-    
-    return true;
-}
-
-bool isRunning() {
-    return running_;
-}
-
-size_t process() {
-    // Check if PBUDP is running
-    if (!handler_ || !running_) {
-        return 0;
-    }
-    
-    // Start timing
-    uint32_t startTime = micros();
-    
-    // Process and send a batch of samples
-    // PBUDPHandler::processAndSendBatch already has threshold checks
-    size_t samplesProcessed = handler_->processAndSendBatch();
-    
-    // Only update timing statistics if we actually did work (sent samples)
-    if (samplesProcessed > 0) {
-        uint32_t processingTime = micros() - startTime;
-        timing_.record(processingTime);
-
-        // Log detailed info for large batches or slow processing
-        if (samplesProcessed > 10 || processingTime > 1000) {
-            util::Debug::detail(F("PBUDP: Processed ") + String(samplesProcessed) + 
-                            F(" samples in ") + String(processingTime) + F("µs"));
-        }
-    }
-    
-    return samplesProcessed;
-}
-
-PBUDPHandler* getHandler() {
-    return handler_;
-}
-
-void getStats(uint32_t& messagesSent, uint32_t& sampleCount, 
-            uint32_t& bytesTransferred, uint32_t& sendErrors) {
-    if (handler_) {
-        messagesSent = handler_->getMessagesSent();
-        sampleCount = handler_->getSampleCount();
-        bytesTransferred = handler_->getBytesTransferred();
-        sendErrors = handler_->getSendErrors();
-    } else {
-        messagesSent = 0;
-        sampleCount = 0;
-        bytesTransferred = 0;
-        sendErrors = 0;
-    }
-}
-
-void getTimingStats(float& avgTime, uint32_t& minTime, uint32_t& maxTime, uint32_t& messageCount) {
-    timing_.get(avgTime, minTime, maxTime, messageCount);
-}
-
-void resetTimingStats() {
-    timing_.reset();
-}
-
-
 PBUDPHandler::PBUDPHandler(util::buffer::CircularBuffer<util::data::ChannelSample, config::FAST_BUFFER_SIZE>& sourceBuffer)
     : sourceBuffer_(sourceBuffer),
       messagesSent_(0),
@@ -151,12 +21,88 @@ PBUDPHandler::PBUDPHandler(util::buffer::CircularBuffer<util::data::ChannelSampl
       lastStatsTime_(0),
       fastBufferOverflowCount_(0),
       port_(8888),
-      isConnected_(false) {
-    
+      isConnected_(false),
+      running_(false) {
+
     // Initialize server address to empty string
     serverAddress_[0] = '\0';
-    
+
     util::Debug::info("PBUDPHandler: Handler initialized");
+}
+
+// --- Lifecycle and stats (folded from the former functions namespace) ---
+
+bool PBUDPHandler::start() {
+    // Check if already running
+    if (running_) {
+        util::Debug::warning(F("PBUDP: Already running"));
+        return true;
+    }
+
+    // Reset timing statistics
+    resetTimingStats();
+
+    running_ = true;
+    util::Debug::info(F("PBUDP: Started"));
+    return true;
+}
+
+bool PBUDPHandler::stop() {
+    if (!running_) {
+        return true;
+    }
+
+    running_ = false;
+    util::Debug::info(F("PBUDP: Stopped"));
+
+    return true;
+}
+
+bool PBUDPHandler::isRunning() const {
+    return running_;
+}
+
+size_t PBUDPHandler::process() {
+    if (!running_) {
+        return 0;
+    }
+
+    // Start timing
+    uint32_t startTime = micros();
+
+    // Process and send a batch of samples
+    // processAndSendBatch already has threshold checks
+    size_t samplesProcessed = processAndSendBatch();
+
+    // Only update timing statistics if we actually did work (sent samples)
+    if (samplesProcessed > 0) {
+        uint32_t processingTime = micros() - startTime;
+        timing_.record(processingTime);
+
+        // Log detailed info for large batches or slow processing
+        if (samplesProcessed > 10 || processingTime > 1000) {
+            util::Debug::detail(F("PBUDP: Processed ") + String(samplesProcessed) +
+                            F(" samples in ") + String(processingTime) + F("µs"));
+        }
+    }
+
+    return samplesProcessed;
+}
+
+void PBUDPHandler::getStats(uint32_t& messagesSent, uint32_t& sampleCount,
+            uint32_t& bytesTransferred, uint32_t& sendErrors) const {
+    messagesSent = messagesSent_;
+    sampleCount = sampleCount_;
+    bytesTransferred = bytesTransferred_;
+    sendErrors = sendErrors_;
+}
+
+void PBUDPHandler::getTimingStats(float& avgTime, uint32_t& minTime, uint32_t& maxTime, uint32_t& messageCount) {
+    timing_.get(avgTime, minTime, maxTime, messageCount);
+}
+
+void PBUDPHandler::resetTimingStats() {
+    timing_.reset();
 }
 
 PBUDPHandler::~PBUDPHandler() {

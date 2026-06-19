@@ -56,6 +56,9 @@ baja::storage::SDWriter sdWriter(sampleBuffer, &sdRingBuf);
 // ADC handler instance
 baja::adc::ADC7175Handler adcHandler(sampleBuffer, fastBuffer);
 
+// Network (PB+UDP) handler instance
+baja::network::PBUDPHandler pbudpHandler(fastBuffer);
+
 // Global status flags
 bool adcInitialized = false;
 bool sdCardInitialized = false;
@@ -217,9 +220,9 @@ void printSystemStatus() {
     }
     
     // Print network status
-    if (networkInitialized && baja::network::isRunning()) {
+    if (networkInitialized && pbudpHandler.isRunning()) {
         uint32_t messagesSent = 0, sampleCount = 0, bytesTransferred = 0, sendErrors = 0;
-        baja::network::getStats(messagesSent, sampleCount, bytesTransferred, sendErrors);
+        pbudpHandler.getStats(messagesSent, sampleCount, bytesTransferred, sendErrors);
         
         float samplesPerMsg = messagesSent > 0 ? (float)sampleCount / messagesSent : 0;
         float msgsPerSec = messagesSent / ((currentTime - startTime) / 1000.0f);
@@ -235,7 +238,7 @@ void printSystemStatus() {
         // Print network timing stats
         float avgTime;
         uint32_t minTime, maxTime, messageCount;
-        baja::network::getTimingStats(avgTime, minTime, maxTime, messageCount);
+        pbudpHandler.getTimingStats(avgTime, minTime, maxTime, messageCount);
         
         baja::util::Debug::info(F("Network Timing: avg=") + String(avgTime, 1) + 
                              F("µs, min=") + String(minTime) + 
@@ -404,8 +407,7 @@ void setup() {
         baja::util::Debug::info(F("Initializing network..."));
         baja::util::Debug::info(F("Server: ") + String(UDP_SERVER_ADDRESS) + F(":") + String(UDP_SERVER_PORT));
         
-        networkInitialized = baja::network::initialize(
-            fastBuffer,
+        networkInitialized = pbudpHandler.initialize(
             UDP_SERVER_ADDRESS,
             UDP_SERVER_PORT
         );
@@ -415,7 +417,7 @@ void setup() {
             
             // Start network operations
             baja::util::Debug::info(F("Starting network operations..."));
-            if (!baja::network::start()) {
+            if (!pbudpHandler.start()) {
                 baja::util::Debug::error(F("Failed to start network operations!"));
                 networkInitialized = false;
             } else {
@@ -493,8 +495,8 @@ void loop() {
     
     // Process network operations - only if enough samples are available
     // (This is already handled in PBUDPHandler::processAndSendBatch())
-    if (networkInitialized && baja::network::isRunning() && loopCount % 5 == 1) {
-        size_t sent = baja::network::process();
+    if (networkInitialized && pbudpHandler.isRunning() && loopCount % 5 == 1) {
+        size_t sent = pbudpHandler.process();
     }
     //     if (sent == (size_t)-1) {
     //         systemState = baja::led::SystemState::NO_CONNECTION;;

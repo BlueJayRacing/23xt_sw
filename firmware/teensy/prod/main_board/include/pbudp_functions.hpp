@@ -5,6 +5,7 @@
 #include <AsyncUDP_Teensy41.hpp>
 #include "util/buffer.hpp"
 #include "util/sample_data.hpp"
+#include "util/timing_stats.hpp"
 #include "config.hpp"
 #include "teensy_data.pb.h"
 
@@ -97,10 +98,68 @@ public:
     
     /**
      * @brief Get the number of send errors
-     * 
+     *
      * @return Error count
      */
     uint32_t getSendErrors() const { return sendErrors_; }
+
+    // Functions below folded from the former functions namespace
+
+    /**
+     * @brief Start PBUDP operations (resets timing counters)
+     *
+     * @return true if successful
+     */
+    bool start();
+
+    /**
+     * @brief Stop PBUDP operations
+     *
+     * @return true if successful
+     */
+    bool stop();
+
+    /**
+     * @brief Check if PBUDP is running
+     *
+     * @return true if running
+     */
+    bool isRunning() const;
+
+    /**
+     * @brief Process and send samples via UDP - called from the master loop
+     *
+     * Wraps processAndSendBatch() with running check and timing.
+     *
+     * @return Number of samples sent (0 if no sending occurred)
+     */
+    size_t process();
+
+    /**
+     * @brief Get statistics about PBUDP operation
+     *
+     * @param messagesSent Output parameter for number of messages sent
+     * @param sampleCount Output parameter for number of samples processed
+     * @param bytesTransferred Output parameter for number of bytes transferred
+     * @param sendErrors Output parameter for number of send errors
+     */
+    void getStats(uint32_t& messagesSent, uint32_t& sampleCount,
+                  uint32_t& bytesTransferred, uint32_t& sendErrors) const;
+
+    /**
+     * @brief Get timing statistics for PBUDP processing
+     *
+     * @param avgTime Average processing time in microseconds
+     * @param minTime Minimum processing time in microseconds
+     * @param maxTime Maximum processing time in microseconds
+     * @param messageCount Total messages sent
+     */
+    void getTimingStats(float& avgTime, uint32_t& minTime, uint32_t& maxTime, uint32_t& messageCount);
+
+    /**
+     * @brief Reset timing statistics
+     */
+    void resetTimingStats();
 
 private:
     // Pre-allocated buffer for samples to process
@@ -127,6 +186,10 @@ private:
     char serverAddress_[64];
     uint16_t port_;
     bool isConnected_;
+
+    // Lifecycle and timing state (folded from the former functions namespace)
+    bool running_;
+    util::TimingStats timing_;
     
     // Maximum UDP payload size (typical Ethernet MTU minus headers)
     static const size_t MAX_UDP_PAYLOAD = 1472;
@@ -179,87 +242,6 @@ private:
         const util::data::ChannelSample* samples, size_t count,
         size_t& outputSize);
 };
-
-/**
- * Combined Protocol Buffer serialization and UDP transmission module
- * Provides initialization, serialization, and UDP transmission for network data.
- */
-
-/**
- * @brief Initialize the PBUDP module
- * 
- * @param sourceBuffer Fast path buffer containing samples to process
- * @param serverAddress Server address (hostname or IP address)
- * @param port Server port
- * @return true if initialization was successful
- */
-bool initialize(
-    util::buffer::CircularBuffer<util::data::ChannelSample, config::FAST_BUFFER_SIZE>& sourceBuffer,
-    const char* serverAddress,
-    uint16_t port = 8888);
-
-/**
- * @brief Start PBUDP operations
- * 
- * @return true if successful
- */
-bool start();
-
-/**
- * @brief Stop PBUDP operations
- * 
- * @return true if successful
- */
-bool stop();
-
-/**
- * @brief Check if PBUDP is running
- * 
- * @return true if running
- */
-bool isRunning();
-
-/**
- * @brief Process and send samples via UDP - called from master loop
- * 
- * Checks if there are enough samples (>= 50) before attempting to send.
- * 
- * @return Number of samples sent (0 if no sending occurred)
- */
-size_t process();
-
-/**
- * @brief Get the PBUDP handler instance
- * 
- * @return Pointer to the PBUDP handler
- */
-PBUDPHandler* getHandler();
-
-/**
- * @brief Get statistics about PBUDP operation
- * 
- * @param messagesSent Output parameter for number of messages sent
- * @param sampleCount Output parameter for number of samples processed
- * @param bytesTransferred Output parameter for number of bytes transferred
- * @param sendErrors Output parameter for number of send errors
- */
-void getStats(uint32_t& messagesSent, uint32_t& sampleCount, 
-            uint32_t& bytesTransferred, uint32_t& sendErrors);
-
-/**
- * @brief Get timing statistics for PBUDP processing
- * 
- * @param avgTime Average processing time in microseconds
- * @param minTime Minimum processing time in microseconds
- * @param maxTime Maximum processing time in microseconds
- * @param messageCount Total messages sent
- */
-void getTimingStats(float& avgTime, uint32_t& minTime, uint32_t& maxTime, uint32_t& messageCount);
-
-/**
- * @brief Reset timing statistics
- */
-void resetTimingStats();
 
 } // namespace network
 } // namespace baja
