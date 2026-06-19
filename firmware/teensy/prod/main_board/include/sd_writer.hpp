@@ -7,6 +7,7 @@
 #include <vector>
 #include "util/buffer.hpp"
 #include "util/sample_data.hpp"
+#include "util/timing_stats.hpp"
 #include "adc_functions.hpp"
 #include "config.hpp"
 #include "util/debug_util.hpp"
@@ -139,7 +140,52 @@ public:
         maxTime = maxSyncTime_;
     }
 
+    // Functions below folded from the former functions namespace
+
+    /**
+     * @brief Start writing (creates the initial file, resets counters)
+     *
+     * @return true if successful
+     */
+    bool start();
+
+    /**
+     * @brief Stop writing (closes the current file)
+     *
+     * @return true if successful
+     */
+    bool stop();
+
+    /**
+     * @brief Check if the writer is running
+     */
+    bool isRunning() const;
+
+    /**
+     * @brief Get total samples written since the last start()
+     */
+    uint64_t getSamplesWritten() const;
+
+    /**
+     * @brief Set a custom name for a channel
+     *
+     * @param internalChannelId Internal channel ID (0-29)
+     * @param customName Custom name for the channel
+     */
+    void setCustomChannelName(uint8_t internalChannelId, const std::string& customName);
+
+    /**
+     * @brief Get timing statistics for SD processing
+     */
+    void getTimingStats(float& avgTime, uint32_t& minTime, uint32_t& maxTime, uint32_t& totalWrites);
+
+    /**
+     * @brief Reset timing statistics
+     */
+    void resetTimingStats();
+
     static Threads::Mutex mutex_;
+    
 private:
     util::buffer::RingBuffer<util::data::ChannelSample, config::SAMPLE_RING_BUFFER_SIZE>& dataBuffer_;
     SdFs sd_;
@@ -160,7 +206,9 @@ private:
     uint32_t maxWriteTime_;
     size_t totalSamplesWritten_;
     bool wasBufferFull_;
-    bool isFirstFile_;      
+    bool isFirstFile_;
+    bool running_;
+    util::TimingStats timing_;
 
     uint32_t lastPeriodicSyncTime_;       // Time of last periodic sync
     uint32_t totalSyncTime_;              // Total time spent in sync operations
@@ -169,6 +217,7 @@ private:
     bool performingFileOperation_;        // Flag to indicate file operation in progress
     bool needDataSync_;                   // Flag indicating data needs to be synced
     
+    size_t processInternal();
     std::string generateFilename() const;
     bool writeHeader();
     bool writeSampleToRingBuf(const util::data::ChannelSample& sample);
@@ -180,136 +229,5 @@ private:
     void startAsyncSync(FsFile &file);
 };
 
-/**
- * @brief SD writer function module
- * 
- * Provides initialization, file management, and data writing for SD card storage.
- */
-namespace functions {
-
-    /**
-     * @brief Initialize the SD module
-     * 
-     * @param ringBuffer Reference to the ring buffer to read samples from
-     * @param sdRingBuf Pointer to the SdFat RingBuf buffer
-     * @param chipSelect SD card chip select pin (not used for SDIO)
-     * @return true if initialization was successful
-     */
-    bool initialize(
-        util::buffer::RingBuffer<util::data::ChannelSample, config::SAMPLE_RING_BUFFER_SIZE>& ringBuffer,
-        RingBuf<FsFile, config::SD_RING_BUF_CAPACITY>* sdRingBuf,
-        uint8_t chipSelect = 254);
-    
-    /**
-     * @brief Start SD writer
-     * 
-     * @return true if successful
-     */
-    bool start();
-    
-    /**
-     * @brief Stop SD writer
-     * 
-     * @return true if successful
-     */
-    bool stop();
-    
-    /**
-     * @brief Check if SD writer is running
-     * 
-     * @return true if running
-     */
-    bool isRunning();
-    
-    /**
-     * @brief Process and write samples to SD card - called from master loop
-     * 
-     * Checks if there are enough samples (>= 15) before attempting to write.
-     * 
-     * @return Number of samples written (0 if no writing occurred)
-     */
-    size_t process();
-    
-    /**
-     * @brief Get the SD writer instance
-     * 
-     * @return Pointer to the SD writer
-     */
-    SDWriter* getWriter();
-    
-    /**
-     * @brief Set channel configurations for the SD writer
-     * 
-     * @param channelConfigs Vector of channel configurations
-     */
-    void setChannelConfigs(const std::vector<adc::ChannelConfig>& channelConfigs);
-    
-    /**
-     * @brief Set a custom name for a channel
-     * 
-     * @param internalChannelId Internal channel ID (0-29)
-     * @param customName Custom name for the channel
-     */
-    void setCustomChannelName(uint8_t internalChannelId, const std::string& customName);
-
-    /**
-     * @brief Create a new file for writing
-     * 
-     * @param addHeader Whether to add a header to the file
-     * @return true if successful
-     */
-    bool createNewFile(bool addHeader = true);
-    
-    /**
-     * @brief Close the current file
-     * 
-     * @return true if successful
-     */
-    bool closeFile();
-    
-    /**
-     * @brief Flush any buffered data to the SD card
-     * 
-     * @return true if successful
-     */
-    bool flush();
-    
-    /**
-     * @brief Get the current filename
-     * 
-     * @return Current filename
-     */
-    std::string getCurrentFilename();
-    
-    /**
-     * @brief Get bytes written to current file
-     * 
-     * @return Bytes written
-     */
-    size_t getBytesWritten();
-    
-    /**
-     * @brief Get samples written to current file
-     * 
-     * @return Samples written
-     */
-    uint64_t getSamplesWritten();
-    
-    /**
-     * @brief Get timing statistics for SD processing
-     * 
-     * @param avgTime Average processing time in microseconds
-     * @param minTime Minimum processing time in microseconds
-     * @param maxTime Maximum processing time in microseconds
-     * @param totalWrites Total number of successful write operations
-     */
-    void getTimingStats(float& avgTime, uint32_t& minTime, uint32_t& maxTime, uint32_t& totalWrites);
-    
-    /**
-     * @brief Reset timing statistics
-     */
-    void resetTimingStats();
-
-} // namespace functions
 } // namespace storage
 } // namespace baja

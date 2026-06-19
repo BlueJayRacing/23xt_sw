@@ -50,6 +50,9 @@ DMAMEM baja::util::data::ChannelSample fastBufferStorage[baja::config::FAST_BUFF
 baja::util::buffer::RingBuffer<baja::util::data::ChannelSample, baja::config::SAMPLE_RING_BUFFER_SIZE> sampleBuffer(ringBufferStorage);
 baja::util::buffer::CircularBuffer<baja::util::data::ChannelSample, baja::config::FAST_BUFFER_SIZE> fastBuffer(fastBufferStorage);
 
+// SD writer instance 
+baja::storage::SDWriter sdWriter(sampleBuffer, &sdRingBuf);
+
 // Global status flags
 bool adcInitialized = false;
 bool sdCardInitialized = false;
@@ -187,12 +190,12 @@ void printSystemStatus() {
     }
     
     // Print SD writer status
-    if (sdCardInitialized && baja::storage::functions::isRunning()) {
-        baja::util::Debug::info(F("SD file: ") + 
-                             String(baja::storage::functions::getCurrentFilename().c_str()));
-        
-        uint32_t bytesWritten = baja::storage::functions::getBytesWritten();
-        uint64_t samplesWritten = baja::storage::functions::getSamplesWritten();
+    if (sdCardInitialized && sdWriter.isRunning()) {
+        baja::util::Debug::info(F("SD file: ") +
+                             String(sdWriter.getCurrentFilename().c_str()));
+
+        uint32_t bytesWritten = sdWriter.getBytesWritten();
+        uint64_t samplesWritten = sdWriter.getSamplesWritten();
         float bytesPerSample = samplesWritten > 0 ? (float)bytesWritten / samplesWritten : 0;
         
         baja::util::Debug::info(F("SD stats: ") + String(bytesWritten / 1024.0f, 1) + F(" KB written, ") + 
@@ -202,7 +205,7 @@ void printSystemStatus() {
         // Print SD timing stats
         float avgTime;
         uint32_t minTime, maxTime, totalWrites;
-        baja::storage::functions::getTimingStats(avgTime, minTime, maxTime, totalWrites);
+        sdWriter.getTimingStats(avgTime, minTime, maxTime, totalWrites);
         
         baja::util::Debug::info(F("SD Timing: avg=") + String(avgTime, 1) + 
                              F("µs, min=") + String(minTime) + 
@@ -317,15 +320,14 @@ void setup() {
 
     // Initialize the SD card
     baja::util::Debug::info(F("Initializing SD card..."));
-    sdCardInitialized = baja::storage::functions::initialize(
-        sampleBuffer, 
-        &sdRingBuf, 
-        SD_CS_PIN
-    );
-    
+    sdCardInitialized = sdWriter.begin(SD_CS_PIN);
+
     if (sdCardInitialized) {
         baja::util::Debug::info(F("SD card initialized successfully."));
-        
+
+        // Initialize all channel names and enable all channels for writing
+        sdWriter.initializeAllChannels();
+
         // Create vector of enabled channel configs
         std::vector<baja::adc::ChannelConfig> channelConfigs;
         for (int i = 0; i < baja::adc::ADC_CHANNEL_COUNT; i++) {
@@ -333,13 +335,13 @@ void setup() {
                 channelConfigs.push_back(channelConfigsArray[i]);
             }
         }
-        
+
         // Set channel names for SD writer
-        baja::storage::functions::setChannelConfigs(channelConfigs);
-        
+        sdWriter.setChannelNames(channelConfigs);
+
         // Start SD writer
         baja::util::Debug::info(F("Starting SD writer..."));
-        if (!baja::storage::functions::start()) {
+        if (!sdWriter.start()) {
             baja::util::Debug::error(F("Failed to start SD writer!"));
             sdCardInitialized = false;
         } else {
@@ -482,9 +484,9 @@ void loop() {
     
     // Process SD operations - only if enough samples are available
     // (This is already handled in SDWriter::process())
-    if (sdCardInitialized && baja::storage::functions::isRunning() && loopCount % 5 == 0) {
-        baja::storage::functions::process();
-    } else if (!baja::storage::functions::isRunning()) {
+    if (sdCardInitialized && sdWriter.isRunning() && loopCount % 5 == 0) {
+        sdWriter.process();
+    } else if (!sdWriter.isRunning()) {
         baja::util::Debug::info(F("SD writing is not working"));
     }
     

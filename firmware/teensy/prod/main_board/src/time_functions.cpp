@@ -132,7 +132,6 @@ static void setHPRTC(uint64_t targetUs) {
   SNVS_HPCR |= (SNVS_HPCR_RTC_EN);
 }
 
-
 // --- UDP packet callback for NTP responses ---
 // Implements hierarchical updates: the HPRTC is updated if its diff > 500 µs,
 // and the SRTC is updated if its diff > 50 ms. Also, we compensate the NTP time

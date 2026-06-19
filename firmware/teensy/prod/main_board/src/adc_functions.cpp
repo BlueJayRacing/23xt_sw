@@ -1,6 +1,7 @@
 #include "adc_functions.hpp"
 #include "util/debug_util.hpp"
 #include "util/sample_data.hpp"
+#include "util/timing_stats.hpp"
 
 namespace baja {
 namespace adc {
@@ -228,7 +229,7 @@ int ADC7175Handler::pollForSample(uint32_t timeout_ms) {
 
     // Cache the conversion result
     lastConversion_ = sample;
-    lastConversionTime_ = util::data::getMicrosecondsSinceEpoch();
+    lastConversionTime_ = util::getMicrosecondsSinceEpoch();
     
     // Calculate read time
     uint32_t read_time = micros() - read_start;

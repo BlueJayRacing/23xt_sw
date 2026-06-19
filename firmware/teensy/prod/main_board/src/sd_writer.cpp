@@ -1,5 +1,6 @@
 #include "sd_writer.hpp"
 #include "util/debug_util.hpp"
+#include "util/timing_stats.hpp"
 #include <TimeLib.h>
 #include "util/mapping.hpp"
 
@@ -26,6 +27,7 @@ SDWriter::SDWriter(util::buffer::RingBuffer<util::data::ChannelSample, config::S
     totalSamplesWritten_(0),
     wasBufferFull_(false),
     isFirstFile_(true),
+    running_(false),
     lastPeriodicSyncTime_(0),
     totalSyncTime_(0),
     syncCount_(0),
@@ -125,6 +127,7 @@ void SDWriter::setChannelNames() {
 
 // Overload that accepts channel configs but just uses them for custom naming
 void SDWriter::setChannelNames(const std::vector<adc::ChannelConfig>& channelConfigs) {
+    
     // First set all names from the global mapping
     setChannelNames();
     
@@ -158,7 +161,7 @@ bool SDWriter::initializeAllChannels() {
     return true;
 }
 
-size_t SDWriter::process() {
+size_t SDWriter::processInternal() {
     static int deferCount = 0;
     
     // Skip processing if we're in the middle of a file operation
@@ -766,253 +769,106 @@ void SDWriter::startAsyncSync(FsFile &file) {
     threads.addThread(asyncSyncTask, &file);
 }
 
-namespace functions {
+// --- Lifecycle and stats (folded from the former functions namespace) ---
 
-// Static variables to maintain state
-static SDWriter* sdWriter_ = nullptr;
-static bool running_ = false;
-static uint64_t totalSamplesWritten_ = 0;
-
-// Timing statistics
-static uint32_t totalProcessingTime_ = 0;
-static uint32_t minProcessingTime_ = UINT32_MAX;
-static uint32_t maxProcessingTime_ = 0;
-static uint32_t processingCount_ = 0;
-static uint32_t lastStatResetTime_ = 0;
-
-// Minimum samples needed for processing
-static const size_t MIN_SAMPLES_FOR_PROCESSING = 15;
-
-bool initialize(
-    util::buffer::RingBuffer<util::data::ChannelSample, config::SAMPLE_RING_BUFFER_SIZE>& ringBuffer,
-    RingBuf<FsFile, config::SD_RING_BUF_CAPACITY>* sdRingBuf,
-    uint8_t chipSelect) {
-    
-    util::Debug::info(F("SD: Initializing"));
-    
-    // Create the SD writer
-    sdWriter_ = new SDWriter(ringBuffer, sdRingBuf);
-    
-    if (!sdWriter_) {
-        util::Debug::error(F("SD: Failed to create SD writer"));
-        return false;
+size_t SDWriter::process() {
+    if (!running_) {
+        return 0;
     }
-    
-    // Initialize SD card
-    if (!sdWriter_->begin(chipSelect)) {
-        util::Debug::error(F("SD: SD card initialization failed"));
-        return false;
+
+    // Time only the work we actually do
+    uint32_t startTime = micros();
+    size_t samplesWritten = processInternal();
+
+    // Only update timing statistics if we actually did work (wrote samples)
+    if (samplesWritten > 0) {
+        uint32_t processingTime = micros() - startTime;
+        timing_.record(processingTime);
+
+        // Log detailed info for large batches
+        if (samplesWritten >= 50) {
+            util::Debug::detail(F("SD: Processed ") + String(samplesWritten) +
+                            F(" samples in ") + String(processingTime) + F("µs"));
+        }
     }
-    
-    // Initialize all channel names and enable all channels for writing
-    sdWriter_->initializeAllChannels();
-    
-    // Reset timing statistics
-    resetTimingStats();
-    
-    util::Debug::info(F("SD: Initialization successful"));
-    return true;
+
+    return samplesWritten;
 }
 
-bool start() {
-    // Check if already running
+bool SDWriter::start() {
     if (running_) {
         util::Debug::warning(F("SD: Already running"));
         return true;
     }
-    
-    // Check if SD writer is initialized
-    if (!sdWriter_) {
-        util::Debug::error(F("SD: SD writer not initialized"));
-        return false;
-    }
-    
+
     // Create a new data file
-    if (!sdWriter_->createNewFile()) {
+    if (!createNewFile()) {
         util::Debug::error(F("SD: Failed to create initial data file!"));
         return false;
     }
-    
-    util::Debug::info(F("SD: Created initial file: ") + 
-                  String(sdWriter_->getCurrentFilename().c_str()));
-    
-    // Reset counters
+
+    util::Debug::info(F("SD: Created initial file: ") +
+                  String(getCurrentFilename().c_str()));
+
+    // Reset counters and timing
     totalSamplesWritten_ = 0;
-    
-    // Reset timing statistics
     resetTimingStats();
-    
+
     running_ = true;
     util::Debug::info(F("SD: Started"));
     return true;
 }
 
-bool stop() {
+bool SDWriter::stop() {
     if (!running_) {
         return true;
     }
-    
-    // Close the file
-    if (sdWriter_) {
-        sdWriter_->closeFile();
-    }
-    
+
+    closeFile();
+
     running_ = false;
     util::Debug::info(F("SD: Stopped"));
-    
     return true;
 }
 
-bool isRunning() {
+bool SDWriter::isRunning() const {
     return running_;
 }
 
-size_t process() {
-    // Check if SD is running
-    if (!sdWriter_ || !running_) {
-        return 0;
-    }
-    
-    // Start timing
-    uint32_t startTime = micros();
-    
-    // Process SD operations - returns number of samples written
-    size_t samplesWritten = sdWriter_->process();
-    
-    // Only update timing statistics if we actually did work (wrote samples)
-    if (samplesWritten > 0) {
-        uint32_t processingTime = micros() - startTime;
-        
-        // Update statistics
-        totalProcessingTime_ += processingTime;
-        processingCount_++;
-        totalSamplesWritten_ += samplesWritten;
-        
-        if (processingTime < minProcessingTime_) {
-            minProcessingTime_ = processingTime;
-        }
-        
-        if (processingTime > maxProcessingTime_) {
-            maxProcessingTime_ = processingTime;
-        }
-        
-        // Log detailed info for large batches
-        if (samplesWritten >= 50) {
-            util::Debug::detail(F("SD: Processed ") + String(samplesWritten) + 
-                            F(" samples in ") + String(processingTime) + F("µs"));
-        }
-    }
-    
-    return samplesWritten;
-}
-
-SDWriter* getWriter() {
-    return sdWriter_;
-}
-
-void setChannelConfigs(const std::vector<adc::ChannelConfig>& channelConfigs) {
-    if (!sdWriter_) {
-        util::Debug::error(F("SD: SD writer not initialized"));
-        return;
-    }
-    
-    sdWriter_->setChannelNames(channelConfigs);
+uint64_t SDWriter::getSamplesWritten() const {
+    return totalSamplesWritten_;
 }
 
 // Update a custom name for any channel (ADC, digital, or misc)
-void setCustomChannelName(uint8_t internalChannelId, const std::string& customName) {
-    if (!sdWriter_) {
-        util::Debug::error(F("SD: SD writer not initialized"));
-        return;
-    }
-    
+void SDWriter::setCustomChannelName(uint8_t internalChannelId, const std::string& customName) {
     if (internalChannelId >= util::TOTAL_CHANNEL_COUNT) {
         util::Debug::warning(F("SD: Invalid channel ID: ") + String(internalChannelId));
         return;
     }
-    
-    // Create a temporary vector with one config entry
-    std::vector<adc::ChannelConfig> tempConfig;
-    adc::ChannelConfig config;
-    
+
     // For ADC channels (0-15), we need to adjust the config
     if (internalChannelId < 16) {
+        std::vector<adc::ChannelConfig> tempConfig;
+        adc::ChannelConfig config;
         config.channelIndex = internalChannelId; // For ADC, internal ID equals channel index
         config.name = customName;
         config.enabled = true;
         tempConfig.push_back(config);
-        
-        // Use the standard interface
-        sdWriter_->setChannelNames(tempConfig);
+
+        setChannelNames(tempConfig);
     } else {
         // For non-ADC channels, we'd need a different method which isn't yet implemented
-        // For now, we'll log a warning
         util::Debug::warning(F("SD: Custom naming for non-ADC channels not yet implemented"));
     }
 }
 
-bool createNewFile(bool addHeader) {
-    if (!sdWriter_) {
-        util::Debug::error(F("SD: SD writer not initialized"));
-        return false;
-    }
-    
-    return sdWriter_->createNewFile(addHeader);
+void SDWriter::getTimingStats(float& avgTime, uint32_t& minTime, uint32_t& maxTime, uint32_t& totalWrites) {
+    timing_.get(avgTime, minTime, maxTime, totalWrites);
 }
 
-bool closeFile() {
-    if (!sdWriter_) {
-        util::Debug::error(F("SD: SD writer not initialized"));
-        return false;
-    }
-    
-    return sdWriter_->closeFile();
+void SDWriter::resetTimingStats() {
+    timing_.reset();
 }
 
-bool flush() {
-    if (!sdWriter_) {
-        util::Debug::error(F("SD: SD writer not initialized"));
-        return false;
-    }
-    
-    return sdWriter_->flush();
-}
-
-std::string getCurrentFilename() {
-    if (!sdWriter_) {
-        return "";
-    }
-    
-    return sdWriter_->getCurrentFilename();
-}
-
-size_t getBytesWritten() {
-    if (!sdWriter_) {
-        return 0;
-    }
-    
-    return sdWriter_->getBytesWritten();
-}
-
-uint64_t getSamplesWritten() {
-    return totalSamplesWritten_;
-}
-
-void getTimingStats(float& avgTime, uint32_t& minTime, uint32_t& maxTime, uint32_t& totalWrites) {
-    avgTime = processingCount_ > 0 ? (float)totalProcessingTime_ / processingCount_ : 0.0f;
-    minTime = minProcessingTime_ == UINT32_MAX ? 0 : minProcessingTime_;
-    maxTime = maxProcessingTime_;
-    totalWrites = processingCount_;
-}
-
-void resetTimingStats() {
-    totalProcessingTime_ = 0;
-    minProcessingTime_ = UINT32_MAX;
-    maxProcessingTime_ = 0;
-    processingCount_ = 0;
-    lastStatResetTime_ = millis();
-}
-
-} // namespace functions
 } // namespace storage
 } // namespace baja
