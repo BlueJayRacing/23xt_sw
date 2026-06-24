@@ -327,6 +327,15 @@ private:
     // Timing statistics for processSample()
     util::TimingStats timing_;
 
+    // Timing statistics for pollForSample() 
+    uint32_t pollSampleCounter_;       
+    uint32_t pollTotalWaitTime_;       
+    uint32_t pollTotalReadTime_;       
+    uint32_t pollTotalWriteTime_;      
+    uint32_t pollSamplesSinceLastLog_;
+    uint32_t pollLastLogTime_;
+    uint32_t pollLastRingBufferWarnTime_;  // Last time a "ring buffer full" warning was logged
+
     /**
      * @brief Read a sample from the ADC
      *

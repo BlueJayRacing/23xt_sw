@@ -33,7 +33,8 @@ SDWriter::SDWriter(util::buffer::RingBuffer<util::data::ChannelSample, config::S
     syncCount_(0),
     maxSyncTime_(0),
     performingFileOperation_(false),
-    needDataSync_(false) {
+    needDataSync_(false),
+    deferCount_(0) {
 }
 
 
@@ -162,13 +163,11 @@ bool SDWriter::initializeAllChannels() {
 }
 
 size_t SDWriter::processInternal() {
-    static int deferCount = 0;
-    
     // Skip processing if we're in the middle of a file operation
     if (performingFileOperation_) {
         if (mutex_.getState() == 0) {
-            deferCount--;
-            if (deferCount == 0) {
+            deferCount_--;
+            if (deferCount_ == 0) {
                 Serial.println("Sync complete, unlocking");
                 performingFileOperation_ = false;
             }
@@ -214,7 +213,7 @@ size_t SDWriter::processInternal() {
         if (!dataFile_.isBusy()) {
             uint32_t syncStartTime = micros();
             startAsyncSync(dataFile_);
-            deferCount = 100;
+            deferCount_ = 100;
             uint32_t syncDuration = micros() - syncStartTime;
             
             lastPeriodicSyncTime_ = currentTime;
@@ -237,7 +236,7 @@ size_t SDWriter::processInternal() {
     // Process deferred sync if needed
     if (needDataSync_ && !dataFile_.isBusy()) {
         startAsyncSync(dataFile_);
-        deferCount = 100;
+        deferCount_ = 100;
         needDataSync_ = false;
         lastPeriodicSyncTime_ = currentTime;
         return 0;

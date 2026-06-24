@@ -20,7 +20,14 @@ ADC7175Handler::ADC7175Handler(util::buffer::RingBuffer<util::data::ChannelSampl
       sampleCount_(0),
       samplingActive_(false),
       lastConversionTime_(0),
-      fastBuffer_(fastBuffer) {
+      fastBuffer_(fastBuffer),
+      pollSampleCounter_(0),
+      pollTotalWaitTime_(0),
+      pollTotalReadTime_(0),
+      pollTotalWriteTime_(0),
+      pollSamplesSinceLastLog_(0),
+      pollLastLogTime_(0),
+      pollLastRingBufferWarnTime_(0) {
     channelConfigs_ = nullptr;
     for (int i = 0; i < util::TOTAL_CHANNEL_COUNT; i++) {
         channelSampleCounters_[i] = 0;
@@ -199,17 +206,11 @@ int ADC7175Handler::pollForSample(uint32_t timeout_ms) {
         return INVALID_VAL;
     }
 
-    // Timing statistics - only log occasionally
-    static uint32_t sampleCounter = 0;
-    static uint32_t totalWaitTime = 0;
-    static uint32_t totalReadTime = 0;
-    static uint32_t totalWriteTime = 0;
-    static uint32_t samplesSinceLastLog = 0;
-    static uint32_t lastLogTime = 0;
+    // Phase-profiling diagnostics persist in members (pollSampleCounter_, etc.)
     const uint32_t LOG_INTERVAL = 10000; // ms
-    
-    sampleCounter++;
-    samplesSinceLastLog++;
+
+    pollSampleCounter_++;
+    pollSamplesSinceLastLog_++;
     
     // Start timing for wait operation
     uint32_t wait_start = micros();
@@ -220,7 +221,7 @@ int ADC7175Handler::pollForSample(uint32_t timeout_ms) {
     
     // Calculate wait time
     uint32_t wait_time = micros() - wait_start;
-    totalWaitTime += wait_time;
+    pollTotalWaitTime_ += wait_time;
 
     // Start timing for read operation
     uint32_t read_start = micros();
@@ -238,7 +239,7 @@ int ADC7175Handler::pollForSample(uint32_t timeout_ms) {
     
     // Calculate read time
     uint32_t read_time = micros() - read_start;
-    totalReadTime += read_time;
+    pollTotalReadTime_ += read_time;
     
     // Create a channel sample and add to ring buffer
     uint8_t internalChannelId = static_cast<uint8_t>(
@@ -253,7 +254,7 @@ int ADC7175Handler::pollForSample(uint32_t timeout_ms) {
         util::Debug::info(F("ts should never HAPPEN THIS IS A LONG LINE..............."));
     }
 
-    if (sampleCounter % (16 * 50 + 15) == 0) {
+    if (pollSampleCounter_ % (16 * 50 + 15) == 0) {
         util::Debug::info(F("Sample data for channel: ") + String(internalChannelId) + F(" with value: ") + String(sample.value));
     }
 
@@ -272,50 +273,49 @@ int ADC7175Handler::pollForSample(uint32_t timeout_ms) {
     // Add to the ring buffer
     if (!ringBuffer_.write(channelSample)) {
         // Only log occasionally to avoid spamming
-        static uint32_t lastRingBufferWarnTime = 0;
         uint32_t currentTime = millis();
-        if (currentTime - lastRingBufferWarnTime > 15000) { // Only warn every 5 seconds
+        if (currentTime - pollLastRingBufferWarnTime_ > 15000) { // Only warn every 5 seconds
             util::Debug::warning("ADC: Ring buffer full, sample dropped");
-            lastRingBufferWarnTime = currentTime;
+            pollLastRingBufferWarnTime_ = currentTime;
         }
         return AH_BUFFERBAD;
     }
     
     // Calculate write time
     uint32_t write_time = micros() - write_start;
-    totalWriteTime += write_time;
+    pollTotalWriteTime_ += write_time;
     
     // Log timing statistics every LOG_INTERVAL samples or 10 seconds
     uint32_t currentTime = millis();
-    if ((sampleCounter % 40000 == 0) || (currentTime - lastLogTime > LOG_INTERVAL && samplesSinceLastLog > 0)) {
-        float avg_wait = (float)totalWaitTime / samplesSinceLastLog;
-        float avg_read = (float)totalReadTime / samplesSinceLastLog;
-        float avg_write = (float)totalWriteTime / samplesSinceLastLog;
+    if ((pollSampleCounter_ % 40000 == 0) || (currentTime - pollLastLogTime_ > LOG_INTERVAL && pollSamplesSinceLastLog_ > 0)) {
+        float avg_wait = (float)pollTotalWaitTime_ / pollSamplesSinceLastLog_;
+        float avg_read = (float)pollTotalReadTime_ / pollSamplesSinceLastLog_;
+        float avg_write = (float)pollTotalWriteTime_ / pollSamplesSinceLastLog_;
         float avg_total = avg_wait + avg_read + avg_write;
-        float samples_per_sec = samplesSinceLastLog * 1000.0f / (currentTime - lastLogTime);
-        
+        float samples_per_sec = pollSamplesSinceLastLog_ * 1000.0f / (currentTime - pollLastLogTime_);
+
         // Check for long waits that could indicate performance issues
         if (wait_time > 100) {
-            util::Debug::detail("ADC Long Wait: " + String(wait_time) + "µs for sample #" + String(sampleCounter));
+            util::Debug::detail("ADC Long Wait: " + String(wait_time) + "µs for sample #" + String(pollSampleCounter_));
         }
-        
+
         // Only log the first few and then periodically to avoid spam
-        if (sampleCounter < 1000 || sampleCounter % 500000 == 0) {
-            util::Debug::detail("ADC Poll Timing: " + 
-                        String(samplesSinceLastLog) + " samples @ " + 
-                        String(samples_per_sec, 1) + " sps, avg=" + 
-                        String(avg_total, 1) + "µs (wait=" + 
-                        String(avg_wait, 1) + "µs, read=" + 
-                        String(avg_read, 1) + "µs, write=" + 
+        if (pollSampleCounter_ < 1000 || pollSampleCounter_ % 500000 == 0) {
+            util::Debug::detail("ADC Poll Timing: " +
+                        String(pollSamplesSinceLastLog_) + " samples @ " +
+                        String(samples_per_sec, 1) + " sps, avg=" +
+                        String(avg_total, 1) + "µs (wait=" +
+                        String(avg_wait, 1) + "µs, read=" +
+                        String(avg_read, 1) + "µs, write=" +
                         String(avg_write, 1) + "µs)");
         }
-        
+
         // Reset timing statistics
-        totalWaitTime = 0;
-        totalReadTime = 0;
-        totalWriteTime = 0;
-        samplesSinceLastLog = 0;
-        lastLogTime = currentTime;
+        pollTotalWaitTime_ = 0;
+        pollTotalReadTime_ = 0;
+        pollTotalWriteTime_ = 0;
+        pollSamplesSinceLastLog_ = 0;
+        pollLastLogTime_ = currentTime;
     }
     
     // Update counters and active channel

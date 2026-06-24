@@ -216,6 +216,7 @@ private:
     uint32_t maxSyncTime_;                // Maximum sync duration
     bool performingFileOperation_;        // Flag to indicate file operation in progress
     bool needDataSync_;                   // Flag indicating data needs to be synced
+    int deferCount_;                      // Countdown of process() calls to defer during a file operation
     
     size_t processInternal();
     std::string generateFilename() const;

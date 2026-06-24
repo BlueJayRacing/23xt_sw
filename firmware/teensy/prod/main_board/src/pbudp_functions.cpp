@@ -22,7 +22,9 @@ PBUDPHandler::PBUDPHandler(util::buffer::CircularBuffer<util::data::ChannelSampl
       fastBufferOverflowCount_(0),
       port_(8888),
       isConnected_(false),
-      running_(false) {
+      running_(false),
+      lastConnectionWarning_(0),
+      lastDetailLogTime_(0) {
 
     // Initialize server address to empty string
     serverAddress_[0] = '\0';
@@ -224,10 +226,9 @@ size_t PBUDPHandler::processAndSendBatch() {
     
     // First check if network is connected
     if (!checkConnection()) {
-        static uint32_t lastConnectionWarning = 0;
-        if (millis() - lastConnectionWarning > 5000) {
+        if (millis() - lastConnectionWarning_ > 5000) {
             util::Debug::warning("PBUDPHandler: Network connection is down");
-            lastConnectionWarning = millis();
+            lastConnectionWarning_ = millis();
         }
         return -1; // Indicate no samples processed
     }
@@ -300,11 +301,10 @@ size_t PBUDPHandler::processAndSendBatch() {
     bytesTransferred_ += encodedSize;
     
     // Log detailed stats periodically
-    static uint32_t lastDetailLogTime = 0;
     uint32_t currentTime = millis();
-    
-    if (currentTime - lastDetailLogTime > 30000) { // Every 30 seconds
-        lastDetailLogTime = currentTime;
+
+    if (currentTime - lastDetailLogTime_ > 30000) { // Every 30 seconds
+        lastDetailLogTime_ = currentTime;
         
         util::Debug::detail("PBUDPHandler: Channel distribution in last batch - ADC: " + String(adcCount) + ", " +
                           "DIN: " + String(dinCount) + ", " +

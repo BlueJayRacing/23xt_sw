@@ -190,6 +190,10 @@ private:
     // Lifecycle and timing state (folded from the former functions namespace)
     bool running_;
     util::TimingStats timing_;
+
+    // Log-throttling state for processAndSendBatch()
+    uint32_t lastConnectionWarning_;   // Last time a "connection down" warning was logged
+    uint32_t lastDetailLogTime_;       // Last time channel-distribution detail was logged
     
     // Maximum UDP payload size (typical Ethernet MTU minus headers)
     static const size_t MAX_UDP_PAYLOAD = 1472;
