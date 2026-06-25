@@ -109,13 +109,6 @@ public:
     bool shouldRotateFile() const;
     
     /**
-     * @brief Flush any buffered data to the card
-     * 
-     * @return true if successful
-     */
-    bool flush();
-    
-    /**
      * @brief Get the last error code
      * 
      * @return Last error code (0 = no error)

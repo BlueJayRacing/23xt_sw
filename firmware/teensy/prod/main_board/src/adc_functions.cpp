@@ -35,72 +35,7 @@ ADC7175Handler::ADC7175Handler(util::buffer::RingBuffer<util::data::ChannelSampl
 }
 
 ADC7175Handler::~ADC7175Handler() {
-    stopSampling();
-}
-
-bool ADC7175Handler::begin(uint8_t csPin, SPIClass& spiInterface, 
-                          const ADCSettings& settings) {
-    util::Debug::info("ADC: Initializing");
-    csPin_ = csPin;
-    spiInterface_ = &spiInterface;
-    
-    // Configure the CS pin as output
-    pinMode(csPin_, OUTPUT);
-    digitalWrite(csPin_, HIGH); // Deselect ADC
-    
-    // Create the initialization parameters
-    ad717x_init_param_t initParam;
-    initParam.active_device = settings.deviceType;
-    initParam.mode = settings.operatingMode;
-    initParam.stat_on_read_en = settings.readStatusWithData;
-    initParam.ref_en = (settings.referenceSource == INTERNAL_REF);
-    
-    // Set up the channel map initially with all channels disabled
-    initParam.chan_map.resize(ADC_CHANNEL_COUNT);
-    for (int i = 0; i < ADC_CHANNEL_COUNT; i++) {
-        initParam.chan_map[i].channel_enable = true; // Only enable channels 0 and 1 for initial test
-        initParam.chan_map[i].setup_sel = 0;
-        
-        // Default to AINx for positive input and REF_M for negative
-        initParam.chan_map[i].inputs.ainp.pos_input = static_cast<ad717x_analog_input_t>(i);
-        initParam.chan_map[i].inputs.ainp.neg_input = REF_M;
-    }
-    
-    // Set up one default setup
-    ad717x_setup_t setup;
-    setup.setup.bi_polar = false;
-    setup.setup.input_buff = true;
-    setup.setup.ref_buff = true;
-    setup.setup.ref_source = settings.referenceSource;
-    setup.filter_config.odr = settings.odrSetting;
-    setup.gain = 1.0;
-    
-    // Add the setup to the parameters
-    initParam.setups.push_back(setup);
-    
-    // Initialize the ADC with debugging
-    int result = adcDriver_.init(initParam, spiInterface_, csPin_, SPISettings(5000000, MSBFIRST, SPI_MODE3));
-    if (result < 0) {
-        util::Debug::error("ADC: Initialization failed with code " + String(result));
-        return false;
-    }
-    
-    // Read the ID register to verify
-    result = adcDriver_.readRegister(AD717X_ID_REG);
-    if (result >= 0) {
-        ad717x_st_reg_t* idReg = adcDriver_.getReg(AD717X_ID_REG);
-        if (idReg) {
-            uint16_t chipId = idReg->value & AD717X_ID_REG_MASK;
-            if (chipId == AD7175_8_ID_REG_VALUE) {
-                util::Debug::info("ADC: Confirmed device is AD7175-8");
-            } else {
-                util::Debug::warning("ADC: Unexpected chip ID: 0x" + String(chipId, HEX));
-            }
-        }
-    }
-    
-    util::Debug::info("ADC: Initialization complete");
-    return true;
+    stop();
 }
 
 bool ADC7175Handler::configureChannels(const ChannelConfig* configs, size_t numChannels) {
@@ -159,44 +94,6 @@ bool ADC7175Handler::configureChannel(const ChannelConfig& config) {
         return false;
     }
     
-    return true;
-}
-
-bool ADC7175Handler::startSampling() {
-    // Check if we're already sampling
-    util::Debug::info("ADC: Starting continuous sampling");
-    if (samplingActive_) {
-        util::Debug::info("ADC: Sampling already active");
-        return true;
-    }
-    
-    // Reset sample count
-    sampleCount_ = 0;
-
-    // Mark as started
-    samplingActive_ = true;
-    
-    util::Debug::info("ADC: Sampling started successfully");
-    return true;
-}
-
-bool ADC7175Handler::stopSampling() {
-    // Check if we're already stopped
-    if (!samplingActive_) {
-        return true;
-    }
-    
-    // Set the ADC to standby mode
-    int result = adcDriver_.setADCMode(STANDBY);
-    if (result < 0) {
-        util::Debug::error("ADC: Failed to stop sampling, code " + String(result));
-        return false;
-    }
-    
-    // Mark as stopped
-    samplingActive_ = false;
-    
-    util::Debug::info("ADC: Sampling stopped");
     return true;
 }
 
@@ -266,7 +163,10 @@ int ADC7175Handler::pollForSample(uint32_t timeout_ms) {
         sample.value,               // Raw ADC value
         millis()                    // Add recorded time
     );
-    
+
+    // Stash for processSample() to reuse; set before the write so it's valid even on AH_BUFFERBAD
+    lastChannelSample_ = channelSample;
+
     // Start timing for write operation
     uint32_t write_start = micros();
     
@@ -396,27 +296,69 @@ void ADC7175Handler::resetADC() {
 bool ADC7175Handler::initialize(uint8_t csPin, SPIClass& spiInterface,
                                 const ADCSettings& settings) {
     util::Debug::info(F("ADC: Initializing"));
+    csPin_ = csPin;
+    spiInterface_ = &spiInterface;
 
     // Reset all channel sample counters
     for (int i = 0; i < util::TOTAL_CHANNEL_COUNT; i++) {
         channelSampleCounters_[i] = 0;
     }
 
-    // Initialize the ADC hardware
-    bool result = begin(csPin, spiInterface, settings);
+    // Configure the CS pin as output
+    pinMode(csPin_, OUTPUT);
+    digitalWrite(csPin_, HIGH); // Deselect ADC
 
-    if (!result) {
-        util::Debug::error(F("ADC: ADC initialization failed"));
+    // Build the initialization parameters
+    ad717x_init_param_t initParam;
+    initParam.active_device = settings.deviceType;
+    initParam.mode = settings.operatingMode;
+    initParam.stat_on_read_en = settings.readStatusWithData;
+    initParam.ref_en = (settings.referenceSource == INTERNAL_REF);
 
-        // Try a reset and reinitialize
+    // Set up the channel map initially with all channels disabled
+    initParam.chan_map.resize(ADC_CHANNEL_COUNT);
+    for (int i = 0; i < ADC_CHANNEL_COUNT; i++) {
+        initParam.chan_map[i].channel_enable = true; // Only enable channels 0 and 1 for initial test
+        initParam.chan_map[i].setup_sel = 0;
+
+        // Default to AINx for positive input and REF_M for negative
+        initParam.chan_map[i].inputs.ainp.pos_input = static_cast<ad717x_analog_input_t>(i);
+        initParam.chan_map[i].inputs.ainp.neg_input = REF_M;
+    }
+
+    // Set up one default setup
+    ad717x_setup_t setup;
+    setup.setup.bi_polar = false;
+    setup.setup.input_buff = true;
+    setup.setup.ref_buff = true;
+    setup.setup.ref_source = settings.referenceSource;
+    setup.filter_config.odr = settings.odrSetting;
+    setup.gain = 1.0;
+    initParam.setups.push_back(setup);
+
+    // Bring up the device; on failure, reset and retry once
+    int result = adcDriver_.init(initParam, spiInterface_, csPin_, SPISettings(5000000, MSBFIRST, SPI_MODE3));
+    if (result < 0) {
+        util::Debug::error(F("ADC: Initialization failed, resetting and retrying..."));
         resetADC();
         delay(50);
-        util::Debug::info(F("ADC: Retrying ADC initialization..."));
-        result = begin(csPin, spiInterface, settings);
-
-        if (!result) {
-            util::Debug::error(F("ADC: ADC retry failed"));
+        result = adcDriver_.init(initParam, spiInterface_, csPin_, SPISettings(5000000, MSBFIRST, SPI_MODE3));
+        if (result < 0) {
+            util::Debug::error("ADC: Retry failed with code " + String(result));
             return false;
+        }
+    }
+
+    // Read the ID register to verify the device identity
+    if (adcDriver_.readRegister(AD717X_ID_REG) >= 0) {
+        ad717x_st_reg_t* idReg = adcDriver_.getReg(AD717X_ID_REG);
+        if (idReg) {
+            uint16_t chipId = idReg->value & AD717X_ID_REG_MASK;
+            if (chipId == AD7175_8_ID_REG_VALUE) {
+                util::Debug::info("ADC: Confirmed device is AD7175-8");
+            } else {
+                util::Debug::warning("ADC: Unexpected chip ID: 0x" + String(chipId, HEX));
+            }
         }
     }
 
@@ -434,11 +376,9 @@ bool ADC7175Handler::start() {
         return true;
     }
 
-    // Start ADC sampling (also resets sampleCount_)
-    if (!startSampling()) {
-        util::Debug::error(F("ADC: Failed to start ADC sampling"));
-        return false;
-    }
+    // Reset sample count and mark as running (no hardware action needed)
+    sampleCount_ = 0;
+    samplingActive_ = true;
 
     // Reset channel counters
     for (int i = 0; i < util::TOTAL_CHANNEL_COUNT; i++) {
@@ -457,9 +397,15 @@ bool ADC7175Handler::stop() {
         return true;
     }
 
-    stopSampling();
-    util::Debug::info(F("ADC: Stopped"));
+    // Set the ADC to standby mode
+    int result = adcDriver_.setADCMode(STANDBY);
+    if (result < 0) {
+        util::Debug::error("ADC: Failed to stop sampling, code " + String(result));
+    } else {
+        samplingActive_ = false;
+    }
 
+    util::Debug::info(F("ADC: Stopped"));
     return true;
 }
 
@@ -476,48 +422,31 @@ bool ADC7175Handler::processSample() {
     // Start timing for this operation
     uint32_t startTime = micros();
 
-    // Poll for new sample (non-blocking)
-    ad717x_data_t adcSample;
+    // pollForSample() stashes the built sample in lastChannelSample_; reuse it for the fast buffer
     bool sampleProcessed = false;
     int ret = pollForSample(0);
     if ( ret == AH_BUFFERBAD || ret == AH_OK ) {
-        // Get the actual sample data
-        if (getLatestConversion(adcSample)) {
-            // IMPORTANT: Convert ADC channel index to internal channel ID
-            uint8_t internalChannelId = static_cast<uint8_t>(
-                util::mapADCToInternalID(adcSample.status.active_channel));
+        const util::data::ChannelSample& channelSample = lastChannelSample_;
+        uint8_t internalChannelId = channelSample.internalChannelId;
 
-            uint64_t conversion_time;
-            getLastConversionTime(conversion_time);
+        // Write to fast buffer with downsampling
+        if (internalChannelId < util::TOTAL_CHANNEL_COUNT) {
+            // Increment channel counter
+            channelSampleCounters_[internalChannelId]++;
 
-            // Create a channel sample with internal ID and recorded time
-            util::data::ChannelSample channelSample(
-                conversion_time,                // Microsecond timestamp
-                internalChannelId,       // Internal channel ID (converted from ADC channel)
-                adcSample.value,         // Raw ADC value
-                millis()                 // Add recorded time in milliseconds
-            );
+            // Every N samples, write to fast buffer
+            if (channelSampleCounters_[internalChannelId] >= config::FAST_BUFFER_DOWNSAMPLE_RATIO) {
+                // Reset counter
+                channelSampleCounters_[internalChannelId] = 0;
 
-            // Write to fast buffer with downsampling
-            if (internalChannelId < util::TOTAL_CHANNEL_COUNT) {
-                // Increment channel counter
-                channelSampleCounters_[internalChannelId]++;
-
-                // Every N samples, write to fast buffer
-                if (channelSampleCounters_[internalChannelId] >= config::FAST_BUFFER_DOWNSAMPLE_RATIO) {
-                    // Reset counter
-                    channelSampleCounters_[internalChannelId] = 0;
-
-                    // Write to fast buffer (this will always succeed due to overwrite policy)
-                    fastBuffer_.write(channelSample);
-                }
+                // Write to fast buffer (this will always succeed due to overwrite policy)
+                fastBuffer_.write(channelSample);
             }
+        }
 
-            // pollForSample() already incremented sampleCount_ on AH_OK
-            if ( ret == AH_OK ) {
-                sampleProcessed = true;
-            }
-
+        // pollForSample() already incremented sampleCount_ on AH_OK
+        if ( ret == AH_OK ) {
+            sampleProcessed = true;
         }
     } else {
         util::Debug::info("error in read");

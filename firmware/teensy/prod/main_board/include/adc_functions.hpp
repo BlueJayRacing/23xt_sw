@@ -151,17 +151,6 @@ public:
     ~ADC7175Handler();
     
     /**
-     * @brief Initialize the ADC
-     * 
-     * @param csPin Chip select pin for the ADC
-     * @param spiInterface SPI interface to use
-     * @param settings ADC settings
-     * @return true if initialization was successful
-     */
-    bool begin(uint8_t csPin, SPIClass& spiInterface, 
-               const ADCSettings& settings = ADCSettings());
-    
-    /**
      * @brief Configure multiple channels
      * 
      * @param configs Array of channel configurations
@@ -177,21 +166,7 @@ public:
      * @return true if configuration was successful
      */
     bool configureChannel(const ChannelConfig& config);
-    
-    /**
-     * @brief Start continuous sampling
-     * 
-     * @return true if successful
-     */
-    bool startSampling();
-    
-    /**
-     * @brief Stop sampling
-     * 
-     * @return true if successful
-     */
-    bool stopSampling();
-    
+
     /**
      * @brief Poll for and process new ADC data
      * 
@@ -243,10 +218,8 @@ public:
         return true;
     }
 
-    // Functions below folded from the former functions namespace
-
     /**
-     * @brief Initialize the ADC hardware (begin + reset/retry on failure)
+     * @brief Initialize the ADC hardware (reset/retry on failure)
      *
      * @param csPin ADC chip select pin
      * @param spiInterface SPI interface to use
@@ -319,6 +292,7 @@ private:
     volatile bool samplingActive_;
     ad717x_data_t lastConversion_;
     uint64_t lastConversionTime_;
+    util::data::ChannelSample lastChannelSample_;  // Built once in pollForSample, reused by processSample
 
     // State folded from the former functions namespace
     util::buffer::CircularBuffer<util::data::ChannelSample, config::FAST_BUFFER_SIZE>& fastBuffer_;

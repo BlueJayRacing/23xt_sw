@@ -441,10 +441,6 @@ bool SDWriter::shouldRotateFile() const {
     return false;
 }
 
-bool SDWriter::flush() {
-    return syncRingBuf(true);
-}
-
 int SDWriter::getLastError() const {
     return lastError_;
 }
