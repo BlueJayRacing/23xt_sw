@@ -1,13 +1,14 @@
 #include <assert.h>
 #include <esp_log.h>
-#include <freertos/FreeRTOS.h>
 #include <stdio.h>
-
-#include <test.hpp>
+#include <ble_mesh_driver.hpp>
 
 static const char* TAG = "main";
 
 extern "C" void app_main(void)
 {
-    Test test(ESP_LOG_DEBUG);
+    BLEMeshDriver driver;
+
+    driver.init_mesh();
+    driver.start_mesh();
 }
