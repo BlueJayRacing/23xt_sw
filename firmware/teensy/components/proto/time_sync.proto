@@ -1,0 +1,5 @@
+syntax = "proto3";
+
+message TimeSync {
+    fixed64 time_us = 1;
+}

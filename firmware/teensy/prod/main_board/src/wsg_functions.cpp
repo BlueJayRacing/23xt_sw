@@ -36,12 +36,13 @@ void process() {
 
     if (!started_sync) {
         bool want_to_start_sync = count % sync_rate == 0 && !override_sync;
-        if(data_recv.recv(&msgs, want_to_start_sync)) {
-            total_sample_count += MESSAGES_PER_DATA_SEND;
+        int received = data_recv.recv(&msgs, want_to_start_sync);
+        if(received > 0) {
+            total_sample_count += received;
             count++;
             started_sync = want_to_start_sync;
 
-            for (int w = 0; w < MESSAGES_PER_DATA_SEND; w++) {
+            for (int w = 0; w < received; w++) {
                 if (msgs[w].wsg_id > 1) return; // data is corrupted
 
                 uint8_t base_id = msgs[w].wsg_id == 0 ? util::WSG0_BASE_CHANNEL_ID : util::WSG1_BASE_CHANNEL_ID;
@@ -59,7 +60,8 @@ void process() {
                 }
             }
             // add stuff to channel
-            for (wsg_data_t wsg : msgs) {
+            for (int w = 0; w < received; w++) {
+                wsg_data_t wsg = msgs[w];
                 util::Debug::info(F("id: ") + String(wsg.wsg_id));
                 util::Debug::info(F("Timestamp: ") + String(wsg.timestamp));
                 util::Debug::info(F("Dac Bias: ") + String(wsg.dac_bias));

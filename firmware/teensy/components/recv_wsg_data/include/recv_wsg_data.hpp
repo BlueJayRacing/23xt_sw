@@ -6,9 +6,8 @@
 
 #include <array>
 
-#define MAX_MESSAGE_LEN 130
+#define MAX_MESSAGE_LEN 256
 #define MESSAGES_PER_DATA_SEND 6
-#define SERIALIZED_MSG_SIZE 19
 
 struct wsg_data_t {
     uint8_t wsg_id;
@@ -16,10 +15,6 @@ struct wsg_data_t {
     uint16_t sample[3];
     uint64_t timestamp;
 };
-
-uint64_t buf_to_uint64(uint8_t * start);
-uint32_t buf_to_uint32(uint8_t * start);
-uint16_t buf_to_uint16(uint8_t * start);
 
 class SpiWsgRecv {
     public:
@@ -33,9 +28,6 @@ class SpiWsgRecv {
         uint8_t handshake_pin; 
         SPIClass * spi_host;
         SPISettings spi_settings;
-
-        wsg_data_t deserialize_message(uint8_t * start);
-        
 };
 
 #endif
