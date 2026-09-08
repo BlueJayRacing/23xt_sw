@@ -11,4 +11,7 @@ extern "C" void app_main(void)
 
     driver.init_mesh();
     driver.start_mesh();
+    while(1) {
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
 }
