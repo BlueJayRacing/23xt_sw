@@ -23,6 +23,8 @@
 
 #define SCAN_Q_LEN 5
 #define RECENT_ID_LEN 5
+#define MANUFACTURER_ID_LS 0x47
+#define MANUFACTURER_ID_MS 0x87
 
 static void scan_cb(esp_gap_ble_cb_t event, esp_ble_gap_cb_param_t *param);
 
@@ -42,6 +44,7 @@ class BLEMeshDriver {
         esp_err_t init_mesh();
         esp_err_t start_mesh();
         esp_err_t set_adv_payload(std::vector<uint8_t> pld);
+        esp_err_t handle_scan_response(esp_ble_gap_ext_adv_report_t report);
 
     private:
         bool is_scanning, is_advertising;
