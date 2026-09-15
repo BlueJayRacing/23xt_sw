@@ -9,7 +9,7 @@ extern "C" void app_main(void)
 {
     BLEMeshDriver driver;
 
-    driver.start_mesh();
+    driver.start_advertising();
     while(1) {
         vTaskDelay(pdMS_TO_TICKS(1000));
     }

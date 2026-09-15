@@ -28,40 +28,23 @@
 
 static void scan_cb(esp_gap_ble_cb_t event, esp_ble_gap_cb_param_t *param);
 
-typedef struct scan_result {
-    uint64_t id;
-    uint8_t ttl;
-    esp_gap_ble_cb_event_t event;
-    esp_ble_gap_cb_param_t * param;
-} scan_result_t;
-
 class BLEMeshDriver {
     public:
 
         BLEMeshDriver();
         ~BLEMeshDriver();
 
-        esp_err_t init_mesh();
         esp_err_t start_mesh();
+        esp_err_t start_advertising();
         esp_err_t set_adv_payload(std::vector<uint8_t> pld);
         esp_err_t handle_scan_response(esp_ble_gap_ext_adv_report_t report);
 
     private:
-        bool is_scanning, is_advertising;
-        uint64_t recent_id[RECENT_ID_LEN];
-
-        esp_err_t init_gap();
-        esp_err_t init_advertising();
-        esp_err_t start_advertising();
-
-        esp_err_t init_scan();
-        esp_err_t start_scan();
-
         esp_ble_adv_params_t adv_params;
+        uint32_t packet_num;
 
-        QueueHandle_t scan_result_q;
-
-
+        esp_err_t init_ext_advertising();
+        bool construct_payload(uint8_t * recv_payload, size_t len, std::vector<uint8_t>& payload_out);
 };
 
 static BLEMeshDriver * instance;

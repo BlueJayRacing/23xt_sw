@@ -8,14 +8,8 @@
 
 static const char * TAG = "ble_mesh_driver";
 
-static uint64_t packet_num = 0;
-
-static uint8_t service_uuid[] = {
-    0xDE, 0xAD, 0xBE, 0xEF, 0xC0, 0xFF, 0xEE, 0x01
-};
-
-static uint64_t buf_to_uint64(uint8_t * buf) {
-    uint64_t num = 0;
+static uint32_t buf_to_uint32(uint8_t * buf) {
+    uint32_t num = 0;
 
     for(uint8_t i = 0; i < 4; i++) {
         num += buf[i] << (i * 8);
@@ -24,7 +18,7 @@ static uint64_t buf_to_uint64(uint8_t * buf) {
     return num;
 }
 
-static void uint64_to_buf(uint64_t num, uint8_t * buf) {
+static void uint32_to_buf(uint32_t num, uint8_t * buf) {
     for(uint8_t i = 0; i < 4; i++) {
         buf[i] = ((num >> (i * 8)) & 0xFF);
     }
@@ -33,9 +27,14 @@ static void uint64_to_buf(uint64_t num, uint8_t * buf) {
 static void scan_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
     // ESP_LOGI(TAG, "Type of result %d", event);
     esp_ble_gap_ext_adv_report_t report;
+    esp_err_t ret;
+
     switch (event) {
         case ESP_GAP_BLE_EXT_ADV_REPORT_EVT:
-            instance->handle_scan_response(param->ext_adv_report.params);
+            ret = instance->handle_scan_response(param->ext_adv_report.params);
+            if (ret != ESP_OK) {
+                ESP_LOGE(TAG, "Failed to handle scan response");
+            }
             break;
 
         case ESP_GAP_BLE_EXT_SCAN_START_COMPLETE_EVT:
@@ -65,21 +64,31 @@ static void scan_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param)
 }
 
 BLEMeshDriver::BLEMeshDriver() {
-    is_scanning = false;
-    is_advertising = false;
-
     instance = this;
+    packet_num = 0;
 }
 
 BLEMeshDriver::~BLEMeshDriver() {
 
 }
 
+bool BLEMeshDriver::construct_payload(uint8_t * recv_payload, size_t len, std::vector<uint8_t>& payload_out) {
+    uint32_t num = buf_to_uint32(recv_payload);
+
+    if (num >= packet_num) {
+        payload_out.clear();
+
+        payload_out.insert(payload_out.end(), recv_payload, recv_payload + len);
+
+        return true;
+    }
+
+    return false;
+}
+
 esp_err_t BLEMeshDriver::handle_scan_response(esp_ble_gap_ext_adv_report_t report) {
     uint8_t len_man_data = 0;
     uint8_t * man_data = esp_ble_resolve_adv_data_by_type(report.adv_data, report.adv_data_len, ESP_BLE_AD_MANUFACTURER_SPECIFIC_TYPE, &len_man_data);
-
-    // if (len > 2) ESP_LOGI(TAG, "MAN ID: %02x, %02x", buf[0], buf[1]);
 
     if (len_man_data > 2 && man_data[0] == MANUFACTURER_ID_LS && man_data[1] == MANUFACTURER_ID_MS) {
         uint8_t len = 0;
@@ -95,17 +104,14 @@ esp_err_t BLEMeshDriver::handle_scan_response(esp_ble_gap_ext_adv_report_t repor
 
 
         if (len_man_data >= 6) {
-            uint8_t new_buf[4] = {0};
+            std::vector<uint8_t> payload;
 
-            uint64_t cur_packet_num = buf_to_uint64(man_data + 2);
-            if (cur_packet_num >= packet_num) {
-                packet_num = cur_packet_num;
-                uint64_to_buf(cur_packet_num + 1, new_buf);
-                std::vector<uint8_t> pld = {new_buf[0], new_buf[1], new_buf[2], new_buf[3]};
-
-                set_adv_payload(pld);
-
-                
+            if (construct_payload(man_data + 2, len_man_data - 2, payload)) {
+                esp_err_t ret = set_adv_payload(payload);
+                if (ret != ESP_OK) {
+                    ESP_LOGE(TAG, "Failed to set payload");
+                    return ret;
+                }
             }
 
             ESP_ERROR_CHECK(esp_ble_gap_stop_ext_scan());
@@ -123,9 +129,7 @@ esp_err_t BLEMeshDriver::handle_scan_response(esp_ble_gap_ext_adv_report_t repor
                 ESP_LOGE(TAG, "Failed to start advertising");
                 return ret;
             }
-
         }
-        
     }
 
     return ESP_OK;
@@ -134,7 +138,7 @@ esp_err_t BLEMeshDriver::handle_scan_response(esp_ble_gap_ext_adv_report_t repor
 esp_err_t BLEMeshDriver::set_adv_payload(std::vector<uint8_t> pld) {
     std::vector<uint8_t> raw_adv_data = {
         0x02, ESP_BLE_AD_TYPE_FLAG, 0x06,
-        13, ESP_BLE_AD_TYPE_NAME_CMPL, 'M', 'E', 'S', 'H', '_', 'N', 'E', 'T', '_', '0', '3', '\0',
+        13, ESP_BLE_AD_TYPE_NAME_CMPL, 'M', 'E', 'S', 'H', '_', 'N', 'E', 'T', '_', '0', '1', '\0',
         static_cast<uint8_t>(pld.size() + 3), ESP_BLE_AD_MANUFACTURER_SPECIFIC_TYPE, MANUFACTURER_ID_LS, MANUFACTURER_ID_MS
     };
 
@@ -144,7 +148,7 @@ esp_err_t BLEMeshDriver::set_adv_payload(std::vector<uint8_t> pld) {
     return ret;
 }
 
-esp_err_t BLEMeshDriver::init_mesh() {
+esp_err_t BLEMeshDriver::init_ext_advertising() {
     esp_err_t ret;
     
     ret = nvs_flash_init();
@@ -173,7 +177,7 @@ esp_err_t BLEMeshDriver::init_mesh() {
 
     esp_ble_gap_ext_adv_params_t ext_adv_params = {0};
     ext_adv_params.type = ESP_BLE_GAP_SET_EXT_ADV_PROP_NONCONN_NONSCANNABLE_UNDIRECTED;
-    ext_adv_params.interval_min = 0x0030;
+    ext_adv_params.interval_min = 0x0020;
     ext_adv_params.interval_max = 0x0030;
     ext_adv_params.channel_map = ADV_CHNL_37; 
     ext_adv_params.own_addr_type = BLE_ADDR_TYPE_PUBLIC;
@@ -193,15 +197,56 @@ esp_err_t BLEMeshDriver::init_mesh() {
     }
 
     ESP_LOGI(TAG, "Setup advertisement");
+    ESP_LOGI(TAG, "POWER LEVEL SET: %u, %u", ESP_PWR_LVL_P9, esp_ble_tx_power_get(ESP_BLE_PWR_TYPE_DEFAULT));
 
-    // esp_bd_addr_t rand_addr = {0xde, 0xad, 0xbe, 0xef, 0x11, 0b10}; // static random addr
-    // ESP_ERROR_CHECK(esp_ble_gap_ext_adv_set_rand_addr(0, rand_addr));
-    // ESP_ERROR_CHECK(esp_ble_gap_set_rand_addr(rand_addr));
+    return ESP_OK;
+}
+
+esp_err_t BLEMeshDriver::start_advertising() {
+    init_ext_advertising();
+
+    ESP_LOGI(TAG, "starting permanent adv");
+
+    esp_ble_gap_ext_adv_t ext_params = {
+        .instance = 0,
+        .duration = 0, // inifite duration
+        .max_events = 0
+    };
+
+    esp_err_t ret = esp_ble_gap_ext_adv_start(1, &ext_params);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to start advertising");
+        return ret;
+    }
+
+    std::vector<uint8_t> payload = {
+        0x00, 0x00, 0x00, 0x00,
+        'T', 'h', 'i', 's', 'i', 's', ' ', 'a', 'n', ' ', 'e', 'x', 'a', 'm', 'p', 'l', 'e', ' ', 
+        'p', 'a', 'y', 'l', 'o', 'a', 'd', ' ', 'l', 'e', 's', 's', ' ', 't', 'h', 'a', 'n', ' ', 
+        '2', '4', '8', ' ', 'b', 'y', 't', 'e', 's',
+    };
+
+    for (uint32_t counter = 0; counter < 1<<16; counter++) {
+        uint32_to_buf(counter, payload.data());
+
+        ret = set_adv_payload(payload);
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to set advertising payload for cont. adv");
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+
+    return ESP_OK;
+}
+
+esp_err_t BLEMeshDriver::start_mesh() {
+    init_ext_advertising();
 
     esp_ble_ext_scan_cfg_t uncoded_cfg;
     uncoded_cfg.scan_type = BLE_SCAN_TYPE_PASSIVE;
-    uncoded_cfg.scan_interval = 0x100;
-    uncoded_cfg.scan_window = 0x100;
+    uncoded_cfg.scan_interval = 0x50;
+    uncoded_cfg.scan_window = 0x50;
 
     esp_ble_ext_scan_params_t ext_scan_params;
     ext_scan_params.own_addr_type = BLE_ADDR_TYPE_PUBLIC;
@@ -213,15 +258,6 @@ esp_err_t BLEMeshDriver::init_mesh() {
 
     ESP_ERROR_CHECK(esp_ble_gap_set_ext_scan_params(&ext_scan_params));
     
-    ESP_LOGI(TAG, "POWER LEVEL SET: %u, %u", ESP_PWR_LVL_P9, esp_ble_tx_power_get(ESP_BLE_PWR_TYPE_DEFAULT));
-
-    return ESP_OK;
-}
-
-esp_err_t BLEMeshDriver::start_mesh() {
-    // ret = esp_ble_gap_start_ext_scan(0x0, 0x0);
-
-
 
     return ESP_OK;
 }
