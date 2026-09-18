@@ -87,7 +87,6 @@ constexpr bool CSV_INCLUDE_CHANNEL_NAMES = false;  // Include channel names in C
 // Protocol Buffer Configuration
 constexpr size_t PB_MAX_MESSAGE_SIZE = 1472;   // Maximum size of ethernet frame minus UDP Header
 constexpr size_t FIXED_SAMPLE_COUNT = 50;   // Maximum samples to process per batch
-constexpr bool USE_HARD_CODED_ENCODING = true;  // Use hard-coded optimized encoders
 
 // ADC settings
 constexpr double ADC_DEFAULT_GAIN = 1.0;

@@ -24,6 +24,9 @@
 // NEW: Time functions module (our NTP/SRTC updater)
 #include "time_functions.hpp"
 
+#define NO_ANALOG
+#define NO_WSG
+
 // #define ESP_TIMESYNC
 
 uint32_t freeRamLow = UINT32_MAX;
@@ -288,8 +291,11 @@ void setup() {
 
     SPI1.begin();
 
+#ifndef NO_WSG
     baja::wsg_streaming::init(&SPI1, 36, 3, esp_spi_settings, sampleBuffer, fastBuffer);
+#endif
 
+#ifndef NO_ANALOG
     // Initialize channel configurations
     bool configSuccess = baja::adc::initializeChannelConfigs(
         channelConfigsArray, 
@@ -301,6 +307,7 @@ void setup() {
         // Print the channel configurations
         baja::adc::printChannelConfigs(channelConfigsArray);
     }
+#endif
 
     // Initialize digital inputs
     baja::util::Debug::info(F("Initializing digital inputs..."));
@@ -357,6 +364,7 @@ void setup() {
         baja::util::Debug::error(F("SD card initialization failed!"));
     }
     
+#ifndef NO_ANALOG
     // Initialize ADC with default settings
     baja::util::Debug::info(F("Initializing ADC..."));
     baja::adc::ADCSettings adcSettings;
@@ -427,8 +435,7 @@ void setup() {
             baja::util::Debug::error(F("Network initialization failed!"));
         }
     }
-
-    
+#endif
 
     // Initialize time functions
     baja::time::initialize();
@@ -438,7 +445,6 @@ void setup() {
     baja::util::Debug::info(F("Main buffer size: ") + String(baja::config::SAMPLE_RING_BUFFER_SIZE) + F(" samples"));
     baja::util::Debug::info(F("Fast buffer size: ") + String(baja::config::FAST_BUFFER_SIZE) + F(" samples"));
     baja::util::Debug::info(F("Downsampling ratio: 1:") + String(baja::config::FAST_BUFFER_DOWNSAMPLE_RATIO));
-    baja::util::Debug::info(F("Hard-coded encoding: ") + String(baja::config::USE_HARD_CODED_ENCODING ? "Enabled" : "Disabled"));
     baja::util::Debug::info(F("Fixed samples per batch: ") + String(baja::config::FIXED_SAMPLE_COUNT));
     baja::util::Debug::info(F("Digital inputs: ") + String(digitalInitialized ? "Enabled" : "Disabled"));
     baja::util::Debug::info(F("==========================================\n"));
@@ -483,8 +489,10 @@ void loop() {
     // receive data from wsg over spi
     // may need to make handler to add it to circle buf
     // TODO: THIS
+#ifndef NO_WSG
     baja::wsg_streaming::process();
-    
+#endif
+
     // Process SD operations - only if enough samples are available
     // (This is already handled in SDWriter::process())
     if (sdCardInitialized && sdWriter.isRunning() && loopCount % 5 == 0) {

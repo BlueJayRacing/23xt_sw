@@ -148,16 +148,19 @@ bool process() {
         if (needSample) {
             uint32_t counterValue = digitalCounters_[i];
 
-            if (digitalCounterIncremented_[i]) {
-                util::Debug::info(F("Digital channel: ") + String(i) + F(" with count: ") + String(counterValue));
-            }
-            
+            bool wasEdge = digitalCounterIncremented_[i];
+
             // Reset the incremented flag
             digitalCounterIncremented_[i] = false;
-            
+
             // Re-enable interrupts
             interrupts();
-            
+
+            // Print outside interrupts
+            if (wasEdge) {
+                util::Debug::info(F("Digital channel: ") + String(i) + F(" with count: ") + String(counterValue));
+            }
+
             // Update last sample time
             lastSampleTimeMs_[i] = currentTimeMs;
             
@@ -198,6 +201,13 @@ bool process() {
             if (mainBufferOk) {
                 samplesProcessed = true;
                 sampleCount_++;
+
+                // Print channel data
+                if (sampleCount_ % (DIGITAL_CHANNEL_COUNT * 50 + 5) == 0) {
+                    util::Debug::info(F("Sample data for digital channel: ") + String(i) +
+                                      F(" with count: ") + String(counterValue) +
+                                      F(", level: ") + String(digitalRead(digital_pins[i]) == HIGH ? "HIGH" : "LOW"));
+                }
             } else {
                 // Main buffer full, log warning occasionally
                 static uint32_t lastBufferFullWarning = 0;

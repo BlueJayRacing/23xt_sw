@@ -230,21 +230,6 @@ private:
      * @brief Log statistics periodically
      */
     void logStats();
-    
-    /**
-     * @brief Helper: Hard-coded encoding for DataChunk
-     * 
-     * @param buffer Pointer to encoded data
-     * @param bufferSize Size of buffer to serialize to
-     * @param samples pointer to samples to encode
-     * @param count numbers of samples to encode - should be fixed
-     * 
-     * 
-     * @return true if send was successful
-     */
-    bool encodeDataChunk(uint8_t* buffer, size_t bufferSize,
-        const util::data::ChannelSample* samples, size_t count,
-        size_t& outputSize);
 };
 
 } // namespace network

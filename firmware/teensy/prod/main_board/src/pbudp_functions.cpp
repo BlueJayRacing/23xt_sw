@@ -328,97 +328,26 @@ bool PBUDPHandler::encodeSamples(const util::data::ChannelSample* samples, size_
             ", must be no more than " + String(config::FIXED_SAMPLE_COUNT));
         return false;
     }
-    
-    if (config::USE_HARD_CODED_ENCODING) {
-        // Use hard-coded encoder for maximum performance.
-        return encodeDataChunk(outputBuffer, config::PB_MAX_MESSAGE_SIZE, samples, count, outputSize);
-    } else {
-        // Create and initialize the DataChunk message
-        DataChunk message = DataChunk_init_zero;
-        message.sample_count = count;
-        for (size_t i = 0; i < count; i++) {
-            message.timestamps[i] = samples[i].timestamp;
-            message.internal_channel_ids[i] = samples[i].internalChannelId;
-            message.values[i] = samples[i].rawValue;
-        }
-        pb_ostream_t stream = pb_ostream_from_buffer(outputBuffer, config::PB_MAX_MESSAGE_SIZE);
-        if (!pb_encode(&stream, DataChunk_fields, &message)) {
-            util::Debug::error("PBUDPHandler: Encoding failed: " + String(PB_GET_ERROR(&stream)));
-            return false;
-        }
-        outputSize = stream.bytes_written;
-        return true;
-    }
-}
 
-
-// Helper function: compute how many bytes a varint will take
-static inline size_t varint_size(uint32_t value) {
-    size_t size = 1;
-    while (value >= 128) {
-        value >>= 7;
-        size++;
-    }
-    return size;
-}
-
-bool PBUDPHandler::encodeDataChunk(uint8_t* buffer, size_t bufferSize,
-        const util::data::ChannelSample* samples, size_t count,
-        size_t& outputSize) {
-    // Create a stream that writes directly into the output buffer.
-    pb_ostream_t stream = pb_ostream_from_buffer(buffer, bufferSize);
-
-    // 1. Encode the timestamps field (packed fixed64)
-    // Write the tag for a length-delimited field.
-    if (!pb_encode_tag(&stream, PB_WT_STRING, DataChunk_timestamps_tag))
-        return false;
-    // Calculate and encode the byte length of the packed timestamps.
-    size_t timestamps_length = count * 8; // each fixed64 is 8 bytes
-    if (!pb_encode_varint(&stream, timestamps_length))
-        return false;
-    // Write each timestamp.
+    // Create and initialize the ChannelSample messages
+    ChannelSampleBatch message = ChannelSampleBatch_init_zero;
+    message.samples_count = count;
     for (size_t i = 0; i < count; i++) {
-        if (!pb_encode_fixed64(&stream, (uint64_t *)&samples[i].timestamp))
-            return false;
+        Sample sample = Sample_init_zero;
+        sample.timestamp = samples[i].timestamp;
+        sample.internal_channel_id = samples[i].internalChannelId;
+        sample.value = samples[i].rawValue;
+        message.samples[i] = sample;
     }
-
-    // 2. Encode the internal_channel_ids field (packed varint)
-    if (!pb_encode_tag(&stream, PB_WT_STRING, DataChunk_internal_channel_ids_tag))
+    pb_ostream_t stream = pb_ostream_from_buffer(outputBuffer, config::PB_MAX_MESSAGE_SIZE);
+    if (!pb_encode(&stream, ChannelSampleBatch_fields, &message)) {
+        util::Debug::error("PBUDPHandler: Encoding failed: " + String(PB_GET_ERROR(&stream)));
         return false;
-    size_t channel_ids_length = 0;
-    for (size_t i = 0; i < count; i++) {
-        channel_ids_length += varint_size(samples[i].internalChannelId);
     }
-    if (!pb_encode_varint(&stream, channel_ids_length))
-        return false;
-    for (size_t i = 0; i < count; i++) {
-        if (!pb_encode_varint(&stream, samples[i].internalChannelId))
-            return false;
-    }
-
-    // 3. Encode the values field (packed varint)
-    if (!pb_encode_tag(&stream, PB_WT_STRING, DataChunk_values_tag))
-        return false;
-    size_t values_length = 0;
-    for (size_t i = 0; i < count; i++) {
-        values_length += varint_size(samples[i].rawValue);
-    }
-    if (!pb_encode_varint(&stream, values_length))
-        return false;
-    for (size_t i = 0; i < count; i++) {
-        if (!pb_encode_varint(&stream, samples[i].rawValue))
-            return false;
-    }
-
-    // 4. Encode the sample_count field (non-packed varint)
-    if (!pb_encode_tag(&stream, PB_WT_VARINT, DataChunk_sample_count_tag))
-        return false;
-    if (!pb_encode_varint(&stream, count))
-        return false;
-
     outputSize = stream.bytes_written;
     return true;
 }
+
 
 bool PBUDPHandler::sendEncodedData(const uint8_t* data, size_t size) {
     // Check if message is too large for UDP
