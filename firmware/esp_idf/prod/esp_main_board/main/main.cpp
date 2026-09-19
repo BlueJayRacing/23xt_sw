@@ -5,9 +5,9 @@
 #include <stdio.h>
 #include "ble_mesh_driver.hpp"
 
-#define NO_TEENSY true
+// #define NO_TEENSY true
 
-gpio_num_t handshake_pin = GPIO_NUM_3;
+gpio_num_t handshake_pin = GPIO_NUM_2;
 #define SPI_SIZE 116
 
 static const char* TAG = "main";
@@ -84,11 +84,13 @@ void spi_read_loop(BLEMeshDriver& driver)
 
         gpio_set_level(handshake_pin, 1);
 
+        ESP_LOGI(TAG, "WAITING FOR TRANS RESULT");
         spi_slave_transaction_t* result;
         spi_slave_get_trans_result(SPI2_HOST, &result, portMAX_DELAY);
 
         gpio_set_level(handshake_pin, 0);
         uint8_t * data = (uint8_t *) result->rx_buffer;
+        ESP_LOGI(TAG, "got data with man id of %02x %02x", data[0], data[1]);
         payload.insert(payload.end(), data, data + SPI_SIZE);
 
         driver.set_adv_payload(payload);
