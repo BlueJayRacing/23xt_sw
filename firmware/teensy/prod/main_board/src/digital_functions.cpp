@@ -2,13 +2,17 @@
 #include "util/debug_util.hpp"
 #include "util/sample_data.hpp" // For high-precision timestamps
 #include "util/timing_stats.hpp"
+#include "spi_data_send.hpp"
 
 namespace baja {
 namespace digital {
 
+SPISettings esp_spi_settings(1000000, MSBFIRST, SPI_MODE1);
+
 // Static variables to maintain state
 static bool running_ = false;
 static uint64_t sampleCount_ = 0;
+static spi_data_send::SPIDataSend data_sender;
 static util::buffer::RingBuffer<util::data::ChannelSample, config::SAMPLE_RING_BUFFER_SIZE>* mainBuffer_ = nullptr;
 static util::buffer::CircularBuffer<util::data::ChannelSample, config::FAST_BUFFER_SIZE>* fastBuffer_ = nullptr;
 
@@ -27,12 +31,12 @@ static volatile bool digital_prev[DIGITAL_CHANNEL_COUNT] = {false};
 static volatile bool digitalCounterIncremented_[DIGITAL_CHANNEL_COUNT] = {false};
 
 // Interrupt service routines for each digital input
-FASTRUN static void isr_d1() {if (!digitalCounterIncremented_[0]) digitalCounters_[0]++; digitalCounterIncremented_[0] = true; } // if (!digitalCounterIncremented_[0]) 
-FASTRUN static void isr_d2() {if (!digitalCounterIncremented_[1]) digitalCounters_[1]++; digitalCounterIncremented_[1] = true; } // if (!digitalCounterIncremented_[1]) 
-FASTRUN static void isr_d3() {if (!digitalCounterIncremented_[2]) digitalCounters_[2]++; digitalCounterIncremented_[2] = true; } // if (!digitalCounterIncremented_[2]) 
-FASTRUN static void isr_d4() {if (!digitalCounterIncremented_[3]) digitalCounters_[3]++; digitalCounterIncremented_[3] = true; } // if (!digitalCounterIncremented_[3]) 
-FASTRUN static void isr_d5() {if (!digitalCounterIncremented_[4]) digitalCounters_[4]++; digitalCounterIncremented_[4] = true; } // if (!digitalCounterIncremented_[4]) 
-FASTRUN static void isr_d6() {if (!digitalCounterIncremented_[5]) digitalCounters_[5]++; digitalCounterIncremented_[5] = true; } // if (!digitalCounterIncremented_[5]) 
+FASTRUN static void isr_d1() {if (!digitalCounterIncremented_[0]) digitalCounters_[0]++; digitalCounterIncremented_[0] = !digitalCounterIncremented_[0]; } // if (!digitalCounterIncremented_[0]) 
+FASTRUN static void isr_d2() {if (!digitalCounterIncremented_[1]) digitalCounters_[1]++; digitalCounterIncremented_[1] = !digitalCounterIncremented_[1]; } // if (!digitalCounterIncremented_[1]) 
+FASTRUN static void isr_d3() {if (!digitalCounterIncremented_[2]) digitalCounters_[2]++; digitalCounterIncremented_[2] = !digitalCounterIncremented_[2]; } // if (!digitalCounterIncremented_[2]) 
+FASTRUN static void isr_d4() {if (!digitalCounterIncremented_[3]) digitalCounters_[3]++; digitalCounterIncremented_[3] = !digitalCounterIncremented_[3]; } // if (!digitalCounterIncremented_[3]) 
+FASTRUN static void isr_d5() {if (!digitalCounterIncremented_[4]) digitalCounters_[4]++; digitalCounterIncremented_[4] = !digitalCounterIncremented_[4]; } // if (!digitalCounterIncremented_[4]) 
+FASTRUN static void isr_d6() {if (!digitalCounterIncremented_[5]) digitalCounters_[5]++; digitalCounterIncremented_[5] = !digitalCounterIncremented_[5]; } // if (!digitalCounterIncremented_[5]) 
 
 bool initialize(
     util::buffer::RingBuffer<util::data::ChannelSample, config::SAMPLE_RING_BUFFER_SIZE>& mainBuffer,
@@ -69,6 +73,9 @@ bool initialize(
     
     // Reset timing statistics
     resetTimingStats();
+
+    SPI1.begin();
+    data_sender.init(&SPI1, 36, 3, esp_spi_settings);
     
     util::Debug::info(F("Digital: Initialization successful"));
     return true;
@@ -84,12 +91,12 @@ bool start() {
     util::Debug::info(F("Digital: Attaching interrupts"));
     
     // Attach interrupts for each digital input on RISING edge
-    attachInterrupt(digitalPinToInterrupt(D1_PIN), isr_d1, RISING);
-    attachInterrupt(digitalPinToInterrupt(D2_PIN), isr_d2, RISING);
-    attachInterrupt(digitalPinToInterrupt(D3_PIN), isr_d3, RISING);
-    attachInterrupt(digitalPinToInterrupt(D4_PIN), isr_d4, RISING);
-    attachInterrupt(digitalPinToInterrupt(D5_PIN), isr_d5, RISING);
-    attachInterrupt(digitalPinToInterrupt(D6_PIN), isr_d6, RISING);
+    attachInterrupt(digitalPinToInterrupt(D1_PIN), isr_d1, CHANGE);
+    attachInterrupt(digitalPinToInterrupt(D2_PIN), isr_d2, CHANGE);
+    attachInterrupt(digitalPinToInterrupt(D3_PIN), isr_d3, CHANGE);
+    attachInterrupt(digitalPinToInterrupt(D4_PIN), isr_d4, CHANGE);
+    attachInterrupt(digitalPinToInterrupt(D5_PIN), isr_d5, CHANGE);
+    attachInterrupt(digitalPinToInterrupt(D6_PIN), isr_d6, CHANGE);
     
     // Reset sample count
     sampleCount_ = 0;
@@ -151,7 +158,7 @@ bool process() {
             bool wasEdge = digitalCounterIncremented_[i];
 
             // Reset the incremented flag
-            digitalCounterIncremented_[i] = false;
+            // digitalCounterIncremented_[i] = false;
 
             // Re-enable interrupts
             interrupts();
@@ -174,6 +181,8 @@ bool process() {
                 counterValue,                   // Raw counter value
                 currentTimeMs                   // Recorded time in milliseconds
             );
+
+            data_sender.publish_sample(channelSample);
             
             // Write to main buffer for SD storage
             bool mainBufferOk = mainBuffer_->write(channelSample);
