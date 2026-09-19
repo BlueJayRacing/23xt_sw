@@ -75,7 +75,7 @@ bool initialize(
     resetTimingStats();
 
     SPI1.begin();
-    data_sender.init(&SPI1, 36, 3, esp_spi_settings);
+    data_sender.init(&SPI1, 28, 4, esp_spi_settings);
     
     util::Debug::info(F("Digital: Initialization successful"));
     return true;
