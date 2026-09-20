@@ -138,7 +138,7 @@ esp_err_t BLEMeshDriver::handle_scan_response(esp_ble_gap_ext_adv_report_t repor
 esp_err_t BLEMeshDriver::set_adv_payload(std::vector<uint8_t> pld) {
     std::vector<uint8_t> raw_adv_data = {
         0x02, ESP_BLE_AD_TYPE_FLAG, 0x06,
-        13, ESP_BLE_AD_TYPE_NAME_CMPL, 'M', 'E', 'S', 'H', '_', 'N', 'E', 'T', '_', '0', '1', '\0',
+        13, ESP_BLE_AD_TYPE_NAME_CMPL, 'M', 'E', 'S', 'H', '_', 'N', 'E', 'T', '_', 'A', 'D', '\0',
         static_cast<uint8_t>(pld.size() + 3), ESP_BLE_AD_MANUFACTURER_SPECIFIC_TYPE, MANUFACTURER_ID_LS, MANUFACTURER_ID_MS
     };
 

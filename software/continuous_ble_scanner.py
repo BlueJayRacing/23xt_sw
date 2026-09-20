@@ -1,29 +1,40 @@
-'''
-Bluetooth LE continuous device scanner.
-
-Scan for Bluetooth LE devices continuously and print them as they're found.
-This will print many duplicates of the same devices.
-
-Requires Bleak (Bluetooth LE Agnostic Klient)
-    - https://github.com/hbldh/bleak
-    - https://bleak.readthedocs.io/en/latest/
-
-Example output:
-    $ python3 continuous_ble_scanner.py
-    ABCDEFGA-1234-5678-9AAB-BCC112233445: iPad AdvertisementData(local_name='...etc...})
-    BCC11223-AABB-1234-1234-ABCDEFGABCDE: SmartOven AdvertisementData(local_name='...etc...})
-    11223344-1111-2222-3333-444445555566: Unknown AdvertisementData(local_name='...etc...})
-'''
-
 import asyncio
 from bleak import BleakScanner
+from dataclass import dataclass
+
+SAMPLE_SIZE = 13
+SAMPLES_PER_MESSAGE = 19
+
+@dataclass
+class ChannelSample:
+    channel: int
+    timestamp: int
+    value: int
+
+def deserialize_sample(sample) -> ChannelSample:
+    ret = ChannelSample()
+
+    ret.channel = int.from_bytes(sample[0])
+    ret.timestamp = int.from_bytes(sample[1:9], "little")
+    ret.value = int.from_bytes(sample[9:13], "little")
+
+    return ret
+
+def process_samples(sample: ChannelSample):
+    for sample in samples:
+        print(sample)
 
 def on_device_discovery_callback(device, advertisement_data):
     # Print details about device and the advertisement packet it sent out
+
+    samples = []
     for key, val in advertisement_data.manufacturer_data.items():
         if key == 0x8747:
-    # print(advertisement_data.manufacturer_data)
-            print(str(device) + ' ' + str(advertisement_data))
+            for i in range(SAMPLES_PER_MESSAGE):
+                samples.append(deserialize_sample(advertisement.manufacturer_data[key][i * SAMPLE_SIZE: (i + 1) * SAMPLE_SIZE]))
+
+    process_samples(samples)
+
 
 async def main():
     # When BleakScanner finds a device, it will send the device data
