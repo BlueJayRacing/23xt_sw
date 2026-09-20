@@ -4,7 +4,7 @@ namespace baja {
 namespace spi_data_send {
 
 std::array<uint8_t, SIZE_SAMPLE> SPIDataSend::serialize_one(util::data::ChannelSample sample) {
-    std::array<uint8_t, SIZE_SAMPLE> ser;
+    std::array<uint8_t, SIZE_SAMPLE> ser = {0};
 
     ser[0] = sample.internalChannelId;
     uint64_to_buf(ser.data() + 1, sample.timestamp);
@@ -28,20 +28,35 @@ void SPIDataSend::publish_sample(util::data::ChannelSample sample) {
     samples[num_samples++] = sample;
 
     if (num_samples == SAMPLES_PER_MESSAGE) {
+        num_samples = 0;
         send_samples();
     }
 }
 
 void SPIDataSend::send_samples() {
-    std::vector<uint8_t> payload = serialize_samples();
+    std::vector<uint8_t> sample_data = serialize_samples();
+    std::vector<uint8_t> payload = {0, 0, 0, 0};
+    uint32_to_buf(payload.data(), counter++);
+
+    // payload.insert(payload.end(), sample_data.begin(), sample_data.end());
 
     if(digitalRead(handshake_pin) == HIGH) {
+        if (payload.size() > 252) Serial.println("PAYLOAD TOO BIG");
         spi_host->beginTransaction(settings);
 
-        std::array<uint8_t, 1> ret_buf;
+        std::array<uint8_t, 252> ret_buf = {0};
+        Serial.print("payload: ");
+        for (int i =  0; i < payload.size(); i++) {
+            Serial.print(payload[i]);
+            Serial.print(", ");
+        }
+        Serial.println();
+
+        payload.resize(252, 0);
 
         digitalWrite(cs_pin, LOW);
-        spi_host->transfer(payload.data(), ret_buf.data(), ret_buf.size());
+        delay(.01);
+        spi_host->transfer(payload.data(), ret_buf.data(), 252);
         digitalWrite(cs_pin, HIGH);
 
         spi_host->endTransaction();

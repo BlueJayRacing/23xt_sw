@@ -498,7 +498,7 @@ void loop() {
     if (sdCardInitialized && sdWriter.isRunning() && loopCount % 5 == 0) {
         sdWriter.process();
     } else if (!sdWriter.isRunning()) {
-        baja::util::Debug::info(F("SD writing is not working"));
+        // baja::util::Debug::info(F("SD writing is not working"));
     }
     
     // Process network operations - only if enough samples are available

@@ -15,6 +15,7 @@ namespace spi_data_send {
         SPIClass * spi_host;
         uint8_t cs_pin;
         uint8_t handshake_pin;
+        uint32_t counter;
         SPISettings settings;
     
         uint8_t num_samples = 0;
@@ -47,6 +48,10 @@ namespace spi_data_send {
             cs_pin = cs_pin_;
             handshake_pin = handshake_pin_;
             settings = settings_;
+
+            // spi_host->setMOSI(18);
+            // spi_host->setMISO(31);
+            // spi_host->setSCK(19);
         }
 
         void publish_sample(util::data::ChannelSample sample);
