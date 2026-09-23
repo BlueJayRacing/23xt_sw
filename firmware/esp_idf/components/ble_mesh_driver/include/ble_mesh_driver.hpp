@@ -25,7 +25,7 @@
 #define RECENT_ID_LEN 5
 #define MANUFACTURER_ID_LS 0x47
 #define MANUFACTURER_ID_MS 0x87
-
+#define MAX_SIZE 156
 void uint32_to_buf(uint32_t num, uint8_t * buf);
 uint32_t buf_to_uint32(uint8_t * buf);
 

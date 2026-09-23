@@ -139,18 +139,37 @@ esp_err_t BLEMeshDriver::set_adv_payload(std::vector<uint8_t> pld) {
     std::vector<uint8_t> raw_adv_data = {
         0x02, ESP_BLE_AD_TYPE_FLAG, 0x06,
         13, ESP_BLE_AD_TYPE_NAME_CMPL, 'M', 'E', 'S', 'H', '_', 'N', 'E', 'T', '_', 'A', 'D', '\0',
-        static_cast<uint8_t>(pld.size() + 3), ESP_BLE_AD_MANUFACTURER_SPECIFIC_TYPE, MANUFACTURER_ID_LS, MANUFACTURER_ID_MS
     };
+    // Get amount to increment the iterator by on each loop
+    auto it = pld.begin();
+    uint8_t manufacturer_boilerplate[] = {static_cast<uint8_t>(MAX_SIZE+3),
+      ESP_BLE_AD_MANUFACTURER_SPECIFIC_TYPE, MANUFACTURER_ID_LS, MANUFACTURER_ID_MS};
 
-    raw_adv_data.insert(raw_adv_data.end(), pld.begin(), pld.end());
-    
+    for(int i = 0; i < pld.size(); i+=MAX_SIZE) {
+      // Insert boilerplate
+      raw_adv_data.insert(raw_adv_data.end(), manufacturer_boilerplate, manufacturer_boilerplate + 4);
+      if(i + MAX_SIZE <= pld.size()) {
+        raw_adv_data.insert(raw_adv_data.end(), it, it+MAX_SIZE);
+        it += MAX_SIZE;
+      }
+      else break;
+    }
+
+    int leftover = pld.end() - it;
+    if(leftover > 0) {
+      uint8_t leftover_boilerplate[] = {static_cast<uint8_t>(leftover+3),
+        ESP_BLE_AD_MANUFACTURER_SPECIFIC_TYPE, MANUFACTURER_ID_LS, MANUFACTURER_ID_MS};
+      raw_adv_data.insert(raw_adv_data.end(), leftover_boilerplate, leftover_boilerplate + 4);
+      raw_adv_data.insert(raw_adv_data.end(), it, pld.end());
+    }
+
     esp_err_t ret = esp_ble_gap_config_ext_adv_data_raw(0, raw_adv_data.size(), raw_adv_data.data());
     return ret;
 }
 
 esp_err_t BLEMeshDriver::init_ext_advertising() {
     esp_err_t ret;
-    
+
     ret = nvs_flash_init();
 
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES ||
