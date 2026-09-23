@@ -20,6 +20,7 @@
 #include "esp_gatt_common_api.h"
 #include "string.h"
 #include <vector>
+#include <string>
 
 #define SCAN_Q_LEN 5
 #define RECENT_ID_LEN 5
@@ -34,7 +35,8 @@ static void scan_cb(esp_gap_ble_cb_t event, esp_ble_gap_cb_param_t *param);
 class BLEMeshDriver {
     public:
 
-        BLEMeshDriver();
+        BLEMeshDriver(std::string name);
+
         ~BLEMeshDriver();
 
         esp_err_t start_mesh();
@@ -45,6 +47,8 @@ class BLEMeshDriver {
     private:
         esp_ble_adv_params_t adv_params;
         uint32_t packet_num;
+
+        std::string board_name;
 
         esp_err_t init_ext_advertising();
         bool construct_payload(uint8_t * recv_payload, size_t len, std::vector<uint8_t>& payload_out);

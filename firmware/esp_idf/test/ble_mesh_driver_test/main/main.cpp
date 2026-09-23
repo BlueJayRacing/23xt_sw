@@ -7,7 +7,8 @@ static const char* TAG = "main";
 
 extern "C" void app_main(void)
 {
-    BLEMeshDriver driver;
+    std::string name = "MESH_NET_02";
+    BLEMeshDriver driver(name);
 
     driver.start_mesh();
     while(1) {

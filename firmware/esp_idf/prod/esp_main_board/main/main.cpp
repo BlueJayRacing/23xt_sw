@@ -7,8 +7,8 @@
 
 // #define NO_TEENSY true
 
-gpio_num_t handshake_pin = GPIO_NUM_2;
-#define SPI_SIZE 252
+gpio_num_t handshake_pin = GPIO_NUM_3;
+#define SPI_SIZE 134
 
 static const char* TAG = "main";
 
@@ -31,7 +31,7 @@ void spi_read_loop(BLEMeshDriver& driver)
 
     slave_config.flags         = 0;
     slave_config.queue_size    = 4;
-    slave_config.mode          = 1;
+    slave_config.mode          = 2;
     // slave_config.post_setup_cb = to_recv;
     // slave_config.post_trans_cb = sent;
 
@@ -102,7 +102,7 @@ void spi_read_loop(BLEMeshDriver& driver)
             payload.insert(payload.end(), data, data + SPI_SIZE);
             ESP_LOGW(TAG, "PAYLOAD SIZE %d", payload.size());
 
-            // driver.set_adv_payload(payload);
+            driver.set_adv_payload(payload);
         }
     }
         
