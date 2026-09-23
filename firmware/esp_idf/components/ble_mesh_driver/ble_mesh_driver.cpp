@@ -63,7 +63,7 @@ static void scan_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param)
     }
 }
 
-BLEMeshDriver::BLEMeshDriver() {
+BLEMeshDriver::BLEMeshDriver(std::string name) : board_name(name) {
     instance = this;
     packet_num = 0;
 }
@@ -138,8 +138,14 @@ esp_err_t BLEMeshDriver::handle_scan_response(esp_ble_gap_ext_adv_report_t repor
 esp_err_t BLEMeshDriver::set_adv_payload(std::vector<uint8_t> pld) {
     std::vector<uint8_t> raw_adv_data = {
         0x02, ESP_BLE_AD_TYPE_FLAG, 0x06,
-        13, ESP_BLE_AD_TYPE_NAME_CMPL, 'M', 'E', 'S', 'H', '_', 'N', 'E', 'T', '_', 'A', 'D', '\0',
+        static_cast<uint8_t>(board_name.size() + 2), ESP_BLE_AD_TYPE_NAME_CMPL, '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0',
+        static_cast<uint8_t>(pld.size() + 3), ESP_BLE_AD_MANUFACTURER_SPECIFIC_TYPE, MANUFACTURER_ID_LS, MANUFACTURER_ID_MS
     };
+
+    for(size_t i = 0; i < board_name.size(); i++) {
+        raw_adv_data[i + 5] = board_name.at(i);
+    }
+    
     // Get amount to increment the iterator by on each loop
     auto it = pld.begin();
     uint8_t manufacturer_boilerplate[] = {static_cast<uint8_t>(MAX_SIZE+3),
@@ -206,7 +212,7 @@ esp_err_t BLEMeshDriver::init_ext_advertising() {
     ext_adv_params.secondary_phy = ESP_BLE_GAP_PHY_1M;
     ext_adv_params.sid = 0;
     ext_adv_params.scan_req_notif = false;
-    ext_adv_params.tx_power = 9;
+    ext_adv_params.tx_power = 20;
 
 
     ret = esp_ble_gap_ext_adv_set_params(0, &ext_adv_params);
