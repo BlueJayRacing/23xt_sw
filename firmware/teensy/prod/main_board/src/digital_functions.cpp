@@ -7,7 +7,7 @@
 namespace baja {
 namespace digital {
 
-SPISettings esp_spi_settings(1000000, MSBFIRST, SPI_MODE1);
+SPISettings esp_spi_settings(1000000, MSBFIRST, SPI_MODE2);
 
 // Static variables to maintain state
 static bool running_ = false;
@@ -75,7 +75,7 @@ bool initialize(
     resetTimingStats();
 
     SPI1.begin();
-    data_sender.init(&SPI1, 28, 4, esp_spi_settings);
+    data_sender.init(&SPI1, 28, 18, esp_spi_settings);
     
     util::Debug::info(F("Digital: Initialization successful"));
     return true;
@@ -93,10 +93,10 @@ bool start() {
     // Attach interrupts for each digital input on RISING edge
     attachInterrupt(digitalPinToInterrupt(D1_PIN), isr_d1, CHANGE);
     attachInterrupt(digitalPinToInterrupt(D2_PIN), isr_d2, CHANGE);
-    attachInterrupt(digitalPinToInterrupt(D3_PIN), isr_d3, CHANGE);
-    attachInterrupt(digitalPinToInterrupt(D4_PIN), isr_d4, CHANGE);
-    attachInterrupt(digitalPinToInterrupt(D5_PIN), isr_d5, CHANGE);
-    attachInterrupt(digitalPinToInterrupt(D6_PIN), isr_d6, CHANGE);
+    // attachInterrupt(digitalPinToInterrupt(D3_PIN), isr_d3, CHANGE);
+    // attachInterrupt(digitalPinToInterrupt(D4_PIN), isr_d4, CHANGE);
+    // attachInterrupt(digitalPinToInterrupt(D5_PIN), isr_d5, CHANGE);
+    // attachInterrupt(digitalPinToInterrupt(D6_PIN), isr_d6, CHANGE);
     
     // Reset sample count
     sampleCount_ = 0;
@@ -114,10 +114,10 @@ bool stop() {
     // Detach interrupts
     detachInterrupt(digitalPinToInterrupt(D1_PIN));
     detachInterrupt(digitalPinToInterrupt(D2_PIN));
-    detachInterrupt(digitalPinToInterrupt(D3_PIN));
-    detachInterrupt(digitalPinToInterrupt(D4_PIN));
-    detachInterrupt(digitalPinToInterrupt(D5_PIN));
-    detachInterrupt(digitalPinToInterrupt(D6_PIN));
+    // detachInterrupt(digitalPinToInterrupt(D3_PIN));
+    // detachInterrupt(digitalPinToInterrupt(D4_PIN));
+    // detachInterrupt(digitalPinToInterrupt(D5_PIN));
+    // detachInterrupt(digitalPinToInterrupt(D6_PIN));
     
     running_ = false;
     util::Debug::info(F("Digital: Stopped"));
@@ -146,7 +146,7 @@ bool process() {
     uint32_t currentTimeMs = millis();
     
     // Check each digital input
-    for (int i = 0; i < DIGITAL_CHANNEL_COUNT; i++) {
+    for (int i = 0; i < 2; i++) {
         // Check if counter was incremented or if sampling interval has elapsed
         // We need to disable interrupts temporarily for reading the volatile flag
         noInterrupts();
@@ -164,9 +164,9 @@ bool process() {
             interrupts();
 
             // Print outside interrupts
-            if (wasEdge) {
-                util::Debug::info(F("Digital channel: ") + String(i) + F(" with count: ") + String(counterValue));
-            }
+            // if (wasEdge) {
+            //     util::Debug::info(F("Digital channel: ") + String(i) + F(" with count: ") + String(counterValue));
+            // }
 
             // Update last sample time
             lastSampleTimeMs_[i] = currentTimeMs;

@@ -38,25 +38,26 @@ void SPIDataSend::send_samples() {
     std::vector<uint8_t> payload = {0, 0, 0, 0};
     uint32_to_buf(payload.data(), counter++);
 
-    // payload.insert(payload.end(), sample_data.begin(), sample_data.end());
+    payload.insert(payload.end(), sample_data.begin(), sample_data.end());
+
+    payload.insert(payload.end(), MAGIC_NUMBER_BUF, MAGIC_NUMBER_BUF + 4);
 
     if(digitalRead(handshake_pin) == HIGH) {
-        if (payload.size() > 252) Serial.println("PAYLOAD TOO BIG");
+        if (payload.size() > SPI_SIZE) Serial.println("PAYLOAD TOO BIG");
         spi_host->beginTransaction(settings);
 
-        std::array<uint8_t, 252> ret_buf = {0};
-        Serial.print("payload: ");
-        for (int i =  0; i < payload.size(); i++) {
-            Serial.print(payload[i]);
-            Serial.print(", ");
-        }
-        Serial.println();
+        std::array<uint8_t, SPI_SIZE> ret_buf = {0};
+        // Serial.print("payload: ");
+        // for (int i =  0; i < payload.size(); i++) {
+        //     Serial.print(payload[i]);
+        //     Serial.print(", ");
+        // }
+        // Serial.println();
 
-        payload.resize(252, 0);
+        payload.resize(SPI_SIZE, 0);
 
         digitalWrite(cs_pin, LOW);
-        delay(.01);
-        spi_host->transfer(payload.data(), ret_buf.data(), 252);
+        spi_host->transfer(payload.data(), ret_buf.data(), payload.size());
         digitalWrite(cs_pin, HIGH);
 
         spi_host->endTransaction();

@@ -5,8 +5,12 @@
 
 #include "util/sample_data.hpp"
 
-#define SAMPLES_PER_MESSAGE 19
+#define SAMPLES_PER_MESSAGE 115
 #define SIZE_SAMPLE 13
+
+#define SPI_SIZE 1503
+
+static constexpr uint8_t MAGIC_NUMBER_BUF[] = {0xEF, 0xBE, 0xAD, 0xDE};
 
 namespace baja {
 namespace spi_data_send {
@@ -48,6 +52,9 @@ namespace spi_data_send {
             cs_pin = cs_pin_;
             handshake_pin = handshake_pin_;
             settings = settings_;
+
+            pinMode(cs_pin, OUTPUT);
+            pinMode(handshake_pin, INPUT);
 
             // spi_host->setMOSI(18);
             // spi_host->setMISO(31);

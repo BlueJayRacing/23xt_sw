@@ -503,9 +503,9 @@ void loop() {
     
     // Process network operations - only if enough samples are available
     // (This is already handled in PBUDPHandler::processAndSendBatch())
-    if (networkInitialized && pbudpHandler.isRunning() && loopCount % 5 == 1) {
-        size_t sent = pbudpHandler.process();
-    }
+    // if (networkInitialized && pbudpHandler.isRunning() && loopCount % 5 == 1) {
+    //     size_t sent = pbudpHandler.process();
+    // }
     //     if (sent == (size_t)-1) {
     //         systemState = baja::led::SystemState::NO_CONNECTION;;
     //     }
