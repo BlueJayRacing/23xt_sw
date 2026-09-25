@@ -26,7 +26,8 @@
 #define RECENT_ID_LEN 5
 #define MANUFACTURER_ID_LS 0x47
 #define MANUFACTURER_ID_MS 0x87
-#define MAX_SIZE 156
+#define MAX_SIZE 230
+
 void uint32_to_buf(uint32_t num, uint8_t * buf);
 uint32_t buf_to_uint32(uint8_t * buf);
 
@@ -40,9 +41,10 @@ class BLEMeshDriver {
         ~BLEMeshDriver();
 
         esp_err_t start_mesh();
-        esp_err_t start_advertising();
+        esp_err_t start_advertising(bool init);
         esp_err_t set_adv_payload(std::vector<uint8_t> pld);
         esp_err_t handle_scan_response(esp_ble_gap_ext_adv_report_t report);
+        esp_err_t stop_advertising();
 
     private:
         esp_ble_adv_params_t adv_params;

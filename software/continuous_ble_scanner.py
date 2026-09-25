@@ -10,7 +10,7 @@ filter_settings = BlueZScannerArgs(
 )
 
 SAMPLE_SIZE = 13
-SAMPLES_PER_MESSAGE = 12
+SAMPLES_PER_MESSAGE = 10
 
 @dataclass
 class ChannelSample:
@@ -25,22 +25,22 @@ def deserialize_sample(sample) -> ChannelSample:
 
 def process_samples(samples):
     for sample in samples:
+        # pass
         print(sample)
 
 
 def on_device_discovery_callback(device, advertisement_data):
     # Print details about device and the advertisement packet it sent out
 
-    # print(advertisement_data, advertisement_data.manufacturer_data)
-
+    all_bytes = b''
     samples = []
     for key, val in advertisement_data.manufacturer_data.items():
-        # print(key)
         if key == 0x8747:
-            # print(advertisement_data, key)
-            for i in range(SAMPLES_PER_MESSAGE):
-                pass
-                samples.append(deserialize_sample(val[i * SAMPLE_SIZE + 4: (i + 1) * SAMPLE_SIZE]))
+            print(device)
+            all_bytes += val
+    
+    for i in range(4, len(all_bytes), SAMPLE_SIZE):
+        samples.append(deserialize_sample(all_bytes[i: i + SAMPLE_SIZE]))
 
     process_samples(samples)
 

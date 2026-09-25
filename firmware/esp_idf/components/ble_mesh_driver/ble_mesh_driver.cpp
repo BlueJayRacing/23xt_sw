@@ -138,36 +138,44 @@ esp_err_t BLEMeshDriver::handle_scan_response(esp_ble_gap_ext_adv_report_t repor
 esp_err_t BLEMeshDriver::set_adv_payload(std::vector<uint8_t> pld) {
     std::vector<uint8_t> raw_adv_data = {
         0x02, ESP_BLE_AD_TYPE_FLAG, 0x06,
-        static_cast<uint8_t>(board_name.size() + 2), ESP_BLE_AD_TYPE_NAME_CMPL, '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0',
-        static_cast<uint8_t>(pld.size() + 3), ESP_BLE_AD_MANUFACTURER_SPECIFIC_TYPE, MANUFACTURER_ID_LS, MANUFACTURER_ID_MS
+        static_cast<uint8_t>(board_name.size() + 1), ESP_BLE_AD_TYPE_NAME_CMPL, //'\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0',
+        // static_cast<uint8_t>(pld.size() + 3), ESP_BLE_AD_MANUFACTURER_SPECIFIC_TYPE, MANUFACTURER_ID_LS, MANUFACTURER_ID_MS
     };
 
-    for(size_t i = 0; i < board_name.size(); i++) {
-        raw_adv_data[i + 5] = board_name.at(i);
-    }
+    // const char * name = board_name.c_str();
+
+    raw_adv_data.insert(raw_adv_data.end(), board_name.begin(), board_name.end());
+
+    // for(size_t i = 0; i < board_name.size(); i++) {
+    //     raw_adv_data.push_back(board_name.at(i));
+    // }
     
     // Get amount to increment the iterator by on each loop
-    auto it = pld.begin();
+    uint8_t * it = pld.data();
+    uint8_t * end = it + (pld.size() - 1);
     uint8_t manufacturer_boilerplate[] = {static_cast<uint8_t>(MAX_SIZE+3),
       ESP_BLE_AD_MANUFACTURER_SPECIFIC_TYPE, MANUFACTURER_ID_LS, MANUFACTURER_ID_MS};
 
-    for(int i = 0; i < pld.size(); i+=MAX_SIZE) {
+    for(int i = 0; i < pld.size(); i += MAX_SIZE) {
       // Insert boilerplate
       raw_adv_data.insert(raw_adv_data.end(), manufacturer_boilerplate, manufacturer_boilerplate + 4);
       if(i + MAX_SIZE <= pld.size()) {
-        raw_adv_data.insert(raw_adv_data.end(), it, it+MAX_SIZE);
+        raw_adv_data.insert(raw_adv_data.end(), it, it + MAX_SIZE);
         it += MAX_SIZE;
       }
       else break;
     }
 
-    int leftover = pld.end() - it;
+    int leftover = end - it;
+    ESP_LOGI(TAG, "LEFTOVER : %d", leftover);
     if(leftover > 0) {
       uint8_t leftover_boilerplate[] = {static_cast<uint8_t>(leftover+3),
         ESP_BLE_AD_MANUFACTURER_SPECIFIC_TYPE, MANUFACTURER_ID_LS, MANUFACTURER_ID_MS};
       raw_adv_data.insert(raw_adv_data.end(), leftover_boilerplate, leftover_boilerplate + 4);
-      raw_adv_data.insert(raw_adv_data.end(), it, pld.end());
+      raw_adv_data.insert(raw_adv_data.end(), it, end);
     }
+
+    ESP_LOGI(TAG, "packet setting of len %d", raw_adv_data.size());
 
     esp_err_t ret = esp_ble_gap_config_ext_adv_data_raw(0, raw_adv_data.size(), raw_adv_data.data());
     return ret;
@@ -227,8 +235,9 @@ esp_err_t BLEMeshDriver::init_ext_advertising() {
     return ESP_OK;
 }
 
-esp_err_t BLEMeshDriver::start_advertising() {
-    init_ext_advertising();
+esp_err_t BLEMeshDriver::start_advertising(bool init) {
+    if (init)
+        init_ext_advertising();
 
     ESP_LOGI(TAG, "starting permanent adv");
 
@@ -245,6 +254,11 @@ esp_err_t BLEMeshDriver::start_advertising() {
     }
 
     return ESP_OK;
+}
+
+esp_err_t BLEMeshDriver::stop_advertising() {
+    const uint8_t u[] = {0, };
+    return esp_ble_gap_ext_adv_stop(1, u);
 }
 
 esp_err_t BLEMeshDriver::start_mesh() {
