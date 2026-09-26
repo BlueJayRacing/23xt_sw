@@ -108,9 +108,10 @@ void spi_read_loop(BLEMeshDriver& driver)
         gpio_set_level(handshake_pin, 0);
         uint8_t * data = (uint8_t *) result->rx_buffer;
         ESP_LOGI(TAG, "got data with man id of %d %d, %d, %d", data[0], data[6], data[5], data[4]);
-        std::vector<uint8_t> magic_buf(payload.end() - 4, payload.end());
-        if (validate_magic(magic_buf.data())) {
-            payload.insert(payload.end(), data, data + SPI_SIZE);
+        // std::vector<uint8_t> magic_buf(payload.end() - 4, payload.end());
+        if (true) {// validate_magic(magic_buf.data())) {
+            
+            payload.insert(payload.end(), data, data + 200);
             ESP_LOGW(TAG, "PAYLOAD SIZE %d", payload.size());
 
             esp_err_t ret = driver.stop_advertising();
