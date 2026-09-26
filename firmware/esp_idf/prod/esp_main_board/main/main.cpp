@@ -9,7 +9,7 @@
 
 gpio_num_t handshake_pin = GPIO_NUM_3;
 
-#define SPI_SIZE 1503
+#define SPI_SIZE 200
 #define MAGIC_NUMBER 0xDEADBEEF
 
 static const char* TAG = "main";
@@ -107,11 +107,11 @@ void spi_read_loop(BLEMeshDriver& driver)
 
         gpio_set_level(handshake_pin, 0);
         uint8_t * data = (uint8_t *) result->rx_buffer;
-        ESP_LOGI(TAG, "got data with man id of %d %d, %d, %d", data[0], data[6], data[5], data[4]);
+        ESP_LOGI(TAG, "got data with man id of %d %d, %d, %d", data[0], data[1], data[2], data[3]);
         // std::vector<uint8_t> magic_buf(payload.end() - 4, payload.end());
         if (true) {// validate_magic(magic_buf.data())) {
             
-            payload.insert(payload.end(), data, data + 200);
+            payload.insert(payload.end(), data, data + SPI_SIZE);
             ESP_LOGW(TAG, "PAYLOAD SIZE %d", payload.size());
 
             esp_err_t ret = driver.stop_advertising();

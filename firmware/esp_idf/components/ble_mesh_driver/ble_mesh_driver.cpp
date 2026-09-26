@@ -8,8 +8,6 @@
 
 static const char * TAG = "ble_mesh_driver";
 
-static bool run = true;
-
 uint32_t buf_to_uint32(uint8_t * buf) {
     uint32_t num = 0;
 
@@ -35,7 +33,12 @@ static void scan_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param)
 
     switch (event) {
         case ESP_GAP_BLE_EXT_ADV_REPORT_EVT:
-            // ESP_LOGI(TAG, "RECV SCAN");
+            // ESP_LOGI(TAG, "RECV SCAN %d", param->scan_rst.search_evt);
+            // if (param->ext_adv_report.params.data_status == ESP_BLE_GAP_EXT_ADV_DATA_INCOMPLETE) {
+            //     ESP_LOGI(TAG, "got inq event");
+            // } else if (param->ext_adv_report.params.data_status == ESP_BLE_GAP_EXT_ADV_DATA_COMPLETE) {
+            //     ESP_LOGI(TAG, "GOT FINISH EVENT");
+            // }
             ret = instance->handle_scan_response(param->ext_adv_report.params);
             if (ret != ESP_OK) {
                 ESP_LOGE(TAG, "Failed to handle scan response");
@@ -64,6 +67,7 @@ static void scan_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param)
             break;
 
         default:
+            ESP_LOGW(TAG, "UNUSED EVENT %d", event);
             break;
     }
 }
@@ -73,32 +77,44 @@ static void scan_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param)
 BLEMeshDriver::BLEMeshDriver(std::string name) : board_name(name) {
     instance = this;
     packet_num = 0;
+    packet_processing = false;
 }
 
 BLEMeshDriver::~BLEMeshDriver() {
 
 }
 
+// bool BLEMeshDriver::validate_packet_id(uint8_t * recv_payload) {
+//     return num > buf_to_uint32(recv_payload);
+// }
+
 bool BLEMeshDriver::construct_payload(uint8_t * recv_payload, size_t len, std::vector<uint8_t>& payload_out) {
-    uint32_t num = buf_to_uint32(recv_payload);
+    if (!packet_processing) {
+        uint32_t num = buf_to_uint32(recv_payload);
 
-    if (num >= packet_num) {
-        payload_out.clear();
+        if (num >= packet_num) {
+            payload_out.clear();
 
-        payload_out.insert(payload_out.end(), recv_payload, recv_payload + len);
+            payload_out.insert(payload_out.end(), recv_payload, recv_payload + len);
 
-        return true;
+            // packet_processing = true;
+
+            return true;
+        }
     }
 
     return false;
 }
 
 esp_err_t BLEMeshDriver::handle_scan_response(esp_ble_gap_ext_adv_report_t report) {
-    ESP_ERROR_CHECK(esp_ble_gap_stop_ext_scan());
-    ESP_ERROR_CHECK(stop_advertising());
+    // ESP_ERROR_CHECK(esp_ble_gap_stop_ext_scan());
+    // ESP_ERROR_CHECK(stop_advertising());
     uint8_t len_man_data = 0;
     uint8_t * man_data = esp_ble_resolve_adv_data_by_type(report.adv_data, report.adv_data_len, ESP_BLE_AD_MANUFACTURER_SPECIFIC_TYPE, &len_man_data);
-
+    // ESP_LOGI(TAG, "HANDLING SCAN RESP");
+    if (len_man_data > 2) {
+        ESP_LOGI(TAG, "MANU DATA FIRST BYTES %d %d", man_data[0], man_data[1]);
+    }
     if (len_man_data > 2 && man_data[0] == MANUFACTURER_ID_LS && man_data[1] == MANUFACTURER_ID_MS) {
         uint8_t len = 0;
         char * name = (char *) esp_ble_resolve_adv_data_by_type(report.adv_data, report.adv_data_len, ESP_BLE_AD_TYPE_NAME_CMPL, &len);
@@ -114,20 +130,20 @@ esp_err_t BLEMeshDriver::handle_scan_response(esp_ble_gap_ext_adv_report_t repor
         if (len_man_data >= 6) {
             std::vector<uint8_t> payload;
 
-            vTaskDelay(10);
+            // vTaskDelay(10);
 
             if (construct_payload(man_data + 2, len_man_data - 2, payload)) {
                 // payload.resize(10);
-                std::vector<uint8_t> testpld = {1, 2, 3, 4, 5, 6, 7};
-                esp_err_t ret = set_adv_payload(testpld);
+                // std::vector<uint8_t> testpld = {1, 2, 3, 4, 5, 6, 7};
+                esp_err_t ret = set_adv_payload(payload);
                 if (ret != ESP_OK) {
                     ESP_LOGE(TAG, "Failed to set payload");
                     return ret;
                 }
             }
 
-
-            vTaskDelay(10);
+            ESP_ERROR_CHECK(esp_ble_gap_stop_ext_scan());
+            // vTaskDelay(10);
 
             esp_ble_gap_ext_adv_t ext_params = {
                 .instance = 0,
@@ -146,11 +162,16 @@ esp_err_t BLEMeshDriver::handle_scan_response(esp_ble_gap_ext_adv_report_t repor
             ESP_LOGI(TAG, "ADV STARTED");
         }
     } else {
-        ESP_ERROR_CHECK(esp_ble_gap_start_ext_scan(0x0, 0x0));
+        // ESP_ERROR_CHECK(esp_ble_gap_start_ext_scan(0x0, 0x0));
     }
     
     return ESP_OK;
 }
+
+// esp_err_t BLEMeshDriver::process_full_payload() {
+
+
+// }
 
 esp_err_t BLEMeshDriver::set_adv_payload(std::vector<uint8_t> pld) {    
     std::vector<uint8_t> raw_adv_data = {
@@ -159,7 +180,7 @@ esp_err_t BLEMeshDriver::set_adv_payload(std::vector<uint8_t> pld) {
         // static_cast<uint8_t>(pld.size() + 3), ESP_BLE_AD_MANUFACTURER_SPECIFIC_TYPE, MANUFACTURER_ID_LS, MANUFACTURER_ID_MS
     };
 
-    ESP_LOGI(TAG, "name size %d %s", board_name.size() + 2, board_name.c_str());
+    // ESP_LOGI(TAG, "name size %d %s", board_name.size() + 2, board_name.c_str());
 
     raw_adv_data.insert(raw_adv_data.end(), board_name.begin(), board_name.end());
     raw_adv_data.push_back(0);
@@ -171,18 +192,18 @@ esp_err_t BLEMeshDriver::set_adv_payload(std::vector<uint8_t> pld) {
     // Get amount to increment the iterator by on each loop
     uint8_t * it = pld.data();
     uint8_t * end = it + pld.size();
-    uint8_t manufacturer_boilerplate[] = {static_cast<uint8_t>(MAX_SIZE+3),
+    uint8_t manufacturer_boilerplate[] = {static_cast<uint8_t>(pld.size()+3),
       ESP_BLE_AD_MANUFACTURER_SPECIFIC_TYPE, MANUFACTURER_ID_LS, MANUFACTURER_ID_MS};
 
-    // for(int i = 0; i < pld.size(); i += MAX_SIZE) {
-    //   // Insert boilerplate
-    //   raw_adv_data.insert(raw_adv_data.end(), manufacturer_boilerplate, manufacturer_boilerplate + 4);
-    //   if(i + MAX_SIZE <= pld.size()) {
-    //     raw_adv_data.insert(raw_adv_data.end(), it, it + MAX_SIZE);
-    //     it += MAX_SIZE;
-    //   }
-    //   else break;
-    // }
+    for(int i = 0; i < pld.size(); i += MAX_SIZE) {
+      // Insert boilerplate
+      if(i + MAX_SIZE <= pld.size()) {
+        raw_adv_data.insert(raw_adv_data.end(), manufacturer_boilerplate, manufacturer_boilerplate + 4);
+        raw_adv_data.insert(raw_adv_data.end(), it, it + MAX_SIZE);
+        it += MAX_SIZE;
+      }
+      else break;
+    }
 
     int leftover = end - it;
     ESP_LOGI(TAG, "LEFTOVER : %d", leftover);
@@ -194,6 +215,8 @@ esp_err_t BLEMeshDriver::set_adv_payload(std::vector<uint8_t> pld) {
     }
 
     // pld.resize(10);
+
+    // raw_adv_data.insert(raw_adv_data.end(), manufacturer_boilerplate, manufacturer_boilerplate + 4);
 
     // raw_adv_data.insert(raw_adv_data.end(), pld.begin(), pld.end());
 
@@ -237,9 +260,9 @@ esp_err_t BLEMeshDriver::init_ext_advertising() {
     ext_adv_params.channel_map = ADV_CHNL_ALL; 
     ext_adv_params.own_addr_type = BLE_ADDR_TYPE_PUBLIC;
     ext_adv_params.filter_policy = ADV_FILTER_ALLOW_SCAN_ANY_CON_ANY;
-    ext_adv_params.primary_phy = ESP_BLE_GAP_PHY_1M;
+    ext_adv_params.primary_phy = ESP_BLE_GAP_PHY_CODED;
     ext_adv_params.max_skip = 0;
-    ext_adv_params.secondary_phy = ESP_BLE_GAP_PHY_1M;
+    ext_adv_params.secondary_phy = ESP_BLE_GAP_PHY_CODED;
     ext_adv_params.sid = 0;
     ext_adv_params.scan_req_notif = false;
     ext_adv_params.tx_power = 20;
@@ -286,8 +309,8 @@ esp_err_t BLEMeshDriver::stop_advertising() {
 esp_err_t BLEMeshDriver::start_mesh() {
     init_ext_advertising();
 
-    std::vector<uint8_t> testpld = {1, 2, 3, 4, 5, 6, 7};
-    esp_err_t ret = set_adv_payload(testpld);
+    // std::vector<uint8_t> testpld = {1, 2, 3, 4, 5, 6, 7};
+    // esp_err_t ret = set_adv_payload(testpld);
 
     esp_ble_ext_scan_cfg_t uncoded_cfg;
     uncoded_cfg.scan_type = BLE_SCAN_TYPE_PASSIVE;

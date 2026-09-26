@@ -47,6 +47,9 @@ class BLEMeshDriver {
         esp_err_t stop_advertising();
 
     private:
+        std::vector<uint8_t> final_payload;
+        bool packet_processing;
+
         esp_ble_adv_params_t adv_params;
         uint32_t packet_num;
 
@@ -54,6 +57,7 @@ class BLEMeshDriver {
 
         esp_err_t init_ext_advertising();
         bool construct_payload(uint8_t * recv_payload, size_t len, std::vector<uint8_t>& payload_out);
+        bool validate_packet_id(uint8_t * recv_payload);
 };
 
 static BLEMeshDriver * instance;
