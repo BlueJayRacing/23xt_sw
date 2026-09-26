@@ -112,9 +112,9 @@ esp_err_t BLEMeshDriver::handle_scan_response(esp_ble_gap_ext_adv_report_t repor
     uint8_t len_man_data = 0;
     uint8_t * man_data = esp_ble_resolve_adv_data_by_type(report.adv_data, report.adv_data_len, ESP_BLE_AD_MANUFACTURER_SPECIFIC_TYPE, &len_man_data);
     // ESP_LOGI(TAG, "HANDLING SCAN RESP");
-    if (len_man_data > 2) {
-        ESP_LOGI(TAG, "MANU DATA FIRST BYTES %d %d", man_data[0], man_data[1]);
-    }
+    // if (len_man_data > 2) {
+    //     ESP_LOGI(TAG, "MANU DATA FIRST BYTES %d %d", man_data[0], man_data[1]);
+    // }
     if (len_man_data > 2 && man_data[0] == MANUFACTURER_ID_LS && man_data[1] == MANUFACTURER_ID_MS) {
         uint8_t len = 0;
         char * name = (char *) esp_ble_resolve_adv_data_by_type(report.adv_data, report.adv_data_len, ESP_BLE_AD_TYPE_NAME_CMPL, &len);
@@ -176,7 +176,7 @@ esp_err_t BLEMeshDriver::handle_scan_response(esp_ble_gap_ext_adv_report_t repor
 esp_err_t BLEMeshDriver::set_adv_payload(std::vector<uint8_t> pld) {    
     std::vector<uint8_t> raw_adv_data = {
         0x02, ESP_BLE_AD_TYPE_FLAG, 0x04,
-        static_cast<uint8_t>(board_name.size() + 2), ESP_BLE_AD_TYPE_NAME_CMPL, //, '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0',
+        static_cast<uint8_t>(board_name.size() + 2), ESP_BLE_AD_TYPE_NAME_CMPL,//, '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0',
         // static_cast<uint8_t>(pld.size() + 3), ESP_BLE_AD_MANUFACTURER_SPECIFIC_TYPE, MANUFACTURER_ID_LS, MANUFACTURER_ID_MS
     };
 
@@ -190,35 +190,35 @@ esp_err_t BLEMeshDriver::set_adv_payload(std::vector<uint8_t> pld) {
     // }
     
     // Get amount to increment the iterator by on each loop
-    uint8_t * it = pld.data();
-    uint8_t * end = it + pld.size();
+    // uint8_t * it = pld.data();
+    // uint8_t * end = it + pld.size();
     uint8_t manufacturer_boilerplate[] = {static_cast<uint8_t>(pld.size()+3),
       ESP_BLE_AD_MANUFACTURER_SPECIFIC_TYPE, MANUFACTURER_ID_LS, MANUFACTURER_ID_MS};
 
-    for(int i = 0; i < pld.size(); i += MAX_SIZE) {
-      // Insert boilerplate
-      if(i + MAX_SIZE <= pld.size()) {
-        raw_adv_data.insert(raw_adv_data.end(), manufacturer_boilerplate, manufacturer_boilerplate + 4);
-        raw_adv_data.insert(raw_adv_data.end(), it, it + MAX_SIZE);
-        it += MAX_SIZE;
-      }
-      else break;
-    }
+    // for(int i = 0; i < pld.size(); i += MAX_SIZE) {
+    //   // Insert boilerplate
+    //   if(i + MAX_SIZE <= pld.size()) {
+    //     raw_adv_data.insert(raw_adv_data.end(), manufacturer_boilerplate, manufacturer_boilerplate + 4);
+    //     raw_adv_data.insert(raw_adv_data.end(), it, it + MAX_SIZE);
+    //     it += MAX_SIZE;
+    //   }
+    //   else break;
+    // }
 
-    int leftover = end - it;
-    ESP_LOGI(TAG, "LEFTOVER : %d", leftover);
-    if(leftover > 0) {
-      uint8_t leftover_boilerplate[] = {static_cast<uint8_t>(leftover+3),
-        ESP_BLE_AD_MANUFACTURER_SPECIFIC_TYPE, MANUFACTURER_ID_LS, MANUFACTURER_ID_MS};
-      raw_adv_data.insert(raw_adv_data.end(), leftover_boilerplate, leftover_boilerplate + 4);
-      raw_adv_data.insert(raw_adv_data.end(), it, end);
-    }
+    // int leftover = end - it;
+    // ESP_LOGI(TAG, "LEFTOVER : %d", leftover);
+    // if(leftover > 0) {
+    //   uint8_t leftover_boilerplate[] = {static_cast<uint8_t>(leftover+3),
+    //     ESP_BLE_AD_MANUFACTURER_SPECIFIC_TYPE, MANUFACTURER_ID_LS, MANUFACTURER_ID_MS};
+    //   raw_adv_data.insert(raw_adv_data.end(), leftover_boilerplate, leftover_boilerplate + 4);
+    //   raw_adv_data.insert(raw_adv_data.end(), it, end);
+    // }
 
     // pld.resize(10);
 
-    // raw_adv_data.insert(raw_adv_data.end(), manufacturer_boilerplate, manufacturer_boilerplate + 4);
+    raw_adv_data.insert(raw_adv_data.end(), manufacturer_boilerplate, manufacturer_boilerplate + 4);
 
-    // raw_adv_data.insert(raw_adv_data.end(), pld.begin(), pld.end());
+    raw_adv_data.insert(raw_adv_data.end(), pld.begin(), pld.end());
 
     ESP_LOGI(TAG, "packet setting of len %d", raw_adv_data.size());
 
@@ -260,9 +260,9 @@ esp_err_t BLEMeshDriver::init_ext_advertising() {
     ext_adv_params.channel_map = ADV_CHNL_ALL; 
     ext_adv_params.own_addr_type = BLE_ADDR_TYPE_PUBLIC;
     ext_adv_params.filter_policy = ADV_FILTER_ALLOW_SCAN_ANY_CON_ANY;
-    ext_adv_params.primary_phy = ESP_BLE_GAP_PHY_CODED;
+    ext_adv_params.primary_phy = ESP_BLE_GAP_PHY_1M;
     ext_adv_params.max_skip = 0;
-    ext_adv_params.secondary_phy = ESP_BLE_GAP_PHY_CODED;
+    ext_adv_params.secondary_phy = ESP_BLE_GAP_PHY_1M;
     ext_adv_params.sid = 0;
     ext_adv_params.scan_req_notif = false;
     ext_adv_params.tx_power = 20;

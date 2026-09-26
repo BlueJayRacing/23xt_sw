@@ -7,7 +7,7 @@ static const char* TAG = "main";
 
 extern "C" void app_main(void)
 {
-    std::string name = "why";
+    std::string name = "Eric's Airpods";
     BLEMeshDriver driver(name);
 
     driver.start_mesh();

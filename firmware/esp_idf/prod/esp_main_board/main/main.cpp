@@ -155,7 +155,7 @@ extern "C" void app_main(void)
 {
     // ESP_LOGI(TAG, "FLASHED");
     // Choose spi host
-    std::string name = "IPhone";
+    std::string name = "Shuwen's IPhone";
     BLEMeshDriver driver(name);
 
     esp_err_t ret = driver.start_advertising(true);

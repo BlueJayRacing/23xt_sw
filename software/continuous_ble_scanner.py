@@ -34,6 +34,9 @@ def process_samples(samples):
 
 def on_device_discovery_callback(device, advertisement_data):
     # Print details about device and the advertisement packet it sent out
+    if device.address[-2:] == "FA":
+        return
+    
     all_bytes = b''
     samples = []
     for key, val in advertisement_data.manufacturer_data.items():
