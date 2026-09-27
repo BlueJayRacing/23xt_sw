@@ -42,19 +42,20 @@ origin_data = {}
 # newest timestamp seen per channel
 last_ts = {}
 
-# one csv per channel per run savedin software/data/
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
-os.makedirs(DATA_DIR, exist_ok=True)
-run_name = time.strftime("%Y-%m-%d_%H-%M-%S")
-
 csv_writers = {}
-for ch in CHANNEL_NAMES:
-    f = open(os.path.join(DATA_DIR, f"{run_name}_ch{ch}.csv"), "w", newline="", buffering=1)
-    csv_writers[ch] = csv.writer(f)
-    csv_writers[ch].writerow(["timestamp_us", "value"])
+
+def open_csvs():
+    """Create csv files."""
+    os.makedirs(DATA_DIR, exist_ok=True)
+    run_name = time.strftime("%Y-%m-%d_%H-%M-%S")
+    for ch in CHANNEL_NAMES:
+        f = open(os.path.join(DATA_DIR, f"{run_name}_ch{ch}.csv"), "w", newline="", buffering=1)
+        csv_writers[ch] = csv.writer(f)
+        csv_writers[ch].writerow(["timestamp_us", "value"])
 
 def add_samples(samples):
-    """File samples by channel. Samples should have channel, timestamp, and value"""
+    """File samples by channel. Samples should have channel, timestamp, and value."""
     for s in samples:
         ch = s.channel
         if ch not in channel_data:
@@ -74,7 +75,8 @@ def add_samples(samples):
         channel_data[ch]["timestamps"].append(s.timestamp)
         channel_data[ch]["values"].append(s.value)
 
-        csv_writers[ch].writerow([s.timestamp, s.value])
+        if ch in csv_writers:
+            csv_writers[ch].writerow([s.timestamp, s.value])
 
 
 def setup_plot():
@@ -96,7 +98,7 @@ def setup_plot():
     return fig, ax, lines
 
 def setup_speed_plot(unit):
-    """Set up plot for both mph and rpm"""
+    """Set up plot for both mph and rpm."""
     fig, ax = plt.subplots(figsize=(12, 6))
 
     ax.set_title(f"{unit} Plot")
@@ -229,11 +231,16 @@ def update_mph_plot(frame, ax, lines):
 
 
 def start():
-    """Open the window for plot"""
+    """Open the window for plot."""
     parser = argparse.ArgumentParser()
     # Run with python dataview.py --no-running-total to see counts per sample
     parser.add_argument("--running_total", action = argparse.BooleanOptionalAction, default = True)
+    # Run with --no-save_csv to skip writing csvs to software/data/
+    parser.add_argument("--save_csv", action = argparse.BooleanOptionalAction, default = True)
     args = parser.parse_args()
+
+    if args.save_csv:
+        open_csvs()
 
     fig, ax, lines = setup_plot()
     ani = FuncAnimation(fig, update_plot,
