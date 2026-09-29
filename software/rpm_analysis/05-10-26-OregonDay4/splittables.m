@@ -49,5 +49,3 @@ for m = 2:length(filelist)
         layoutname = "layout" + plotval + ".pdf";
         exportgraphics(t, layoutname);
 end
-
-t
