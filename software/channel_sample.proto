@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+import "nanopb.proto";
+
+message ChannelSample {
+  fixed64 timestamp           = 1;                            
+  uint32  internal_channel_id = 2 [(nanopb).int_size = IS_8]; 
+  uint32  value               = 3;                          
+}
+
+message ChannelSampleBatch {
+  repeated ChannelSample samples = 1 [(nanopb).max_count = 50];
+}

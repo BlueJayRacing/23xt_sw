@@ -13,3 +13,4 @@ build
 .pio
 .pio/*
 
+common/*
