@@ -7,6 +7,8 @@ from bleak.args.bluez import BlueZScannerArgs, OrPattern
 from bleak.assigned_numbers import AdvertisementDataType
 import dataview
 
+from datetime import datetime
+
 filter_settings = BlueZScannerArgs(
     or_patterns = [OrPattern(0, AdvertisementDataType.MANUFACTURER_SPECIFIC_DATA, b'\x47\x87'), ] #[OrPattern(0, 0xFF, b'\x47\x87')]
 )
@@ -28,6 +30,7 @@ def deserialize_sample(sample) -> ChannelSample:
 
 def process_samples(samples):
     # print(samples)
+    print(datetime.now())
     dataview.add_samples(samples)
     # dataview.update_plot()
 
