@@ -15,6 +15,7 @@ myTables = cell(numFiles - 1, 6);
 % Create ONE hidden figure outside the loop to reuse
 f = figure('Visible', 'off', 'Position', [100, 100, 1000, 800]);
 
+%skipped the first file because its bugged
 for m = 2:numFiles
     fileName = filelist(m).name;
     fullname = fullfile(folderpath, fileName);
