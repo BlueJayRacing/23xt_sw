@@ -1,51 +1,80 @@
-% change the path to where your data is
-cd C:\Users\steve\baja\23xt_sw\software\rpm_analysis\05-10-26-OregonDay4
-folderpath = pwd;
-fileExtension = '*.csv';
-filelist = dir(fullfile(folderpath, fileExtension));
-% filelist sorts by alphabetical order
+% Paths
+folderpath = 'C:\Users\steve\baja\23xt_sw\software\rpm_analysis\05-10-26-OregonDay4';
+outputpath = 'C:\Users\steve\baja\23xt_sw\software\rpm_analysis\05-10-26-OregonDay4\testplots';
 
-%% 
-% skipped the first file because its bugged for some reason
-% the last file in filelist is a combo of all the data from each csv file
-for m = 2:length(filelist) 
-
-    file = filelist(m).name;
-    fullname = fullfile(folderpath, file);
-    data = readtable(fullname);
-    for n = 1:6
-        channel = 21+n;
-        idx = data.internal_channel_id == channel;
-        temp_table = data(idx, :);
-        temp_table(:, 1) = [];
-        temp_table(:, 2) = [];
-        myTables{m-1,n} = temp_table;
-        % column 1 is channel 22, column 2 is channel 23, etc.
-    end
-        array22 = table2array(myTables{m-1, 1});
-        array23 = table2array(myTables{m-1, 2});
-        array24 = table2array(myTables{m-1, 3});
-        array25 = table2array(myTables{m-1, 4});
-        array26 = table2array(myTables{m-1, 5});
-        array27 = table2array(myTables{m-1, 6});
-
-        f = figure('Visible', 'off');
-        t = tiledlayout(3,2);
-        nexttile;
-        plot(array22(:, 1), array22(:, 2));
-        nexttile;
-        plot(array23(:, 1), array23(:, 2));
-        nexttile;
-        plot(array24(:, 1), array24(:, 2));
-        nexttile;
-        plot(array25(:, 1), array25(:, 2));
-        nexttile;
-        plot(array26(:, 1), array26(:, 2));
-        nexttile;
-        plot(array27(:, 1), array27(:, 2));
-        % the plot is value of the channel against relative time
-
-        plotval = m-1;
-        layoutname = "layout" + plotval + ".pdf";
-        exportgraphics(t, layoutname);
+% Create output folder if it doesn't exist
+if ~exist(outputpath, 'dir')
+    mkdir(outputpath);
 end
+
+filelist = dir(fullfile(folderpath, '*.csv'));
+
+numFiles = length(filelist);
+myTables = cell(numFiles - 1, 6);
+
+% Create ONE hidden figure outside the loop to reuse
+f = figure('Visible', 'off', 'Position', [100, 100, 1000, 800]);
+
+for m = 2:numFiles
+    fileName = filelist(m).name;
+    fullname = fullfile(folderpath, fileName);
+    
+    % Check if file can be read
+    try
+        data = readtable(fullname);
+    catch
+        warning('Could not read file: %s', fileName);
+        continue;
+    end
+    
+    % Clear the figure contents for the new iteration and recreate layout
+    clf(f); 
+    t = tiledlayout(f, 3, 2, 'TileSpacing', 'compact', 'Padding', 'compact');
+    
+    for n = 1:6
+        channel = 21 + n; 
+        idx = data.internal_channel_id == channel;
+        
+        temp_table = data(idx, :);
+        
+        % If data exists, clean it up. Otherwise, leave it empty.
+        if height(temp_table) > 0
+            % Delete columns 1 and 3 simultaneously
+            temp_table(:, [1, 3]) = []; 
+            
+            % Two's complement conversion
+            mask = temp_table.value > 32767;
+            temp_table.value(mask) = temp_table.value(mask) - 65536;
+        end
+        
+        myTables{m-1, n} = temp_table;
+        
+        % Plot regardless of whether data is empty or not
+        nexttile(t);
+        if height(temp_table) > 0
+            arr = table2array(temp_table);
+            
+            % Convert microseconds (column 1) to seconds
+            arr(:, 1) = arr(:, 1) / 1e6; 
+            
+            plot(arr(:, 1), arr(:, 2), 'LineWidth', 0.75);
+        else
+            plot(NaN, NaN); % Plots an empty frame so the tile layout stays intact
+        end
+        
+        % Labels and Titles
+        title(sprintf('Channel ID %d', channel), 'FontSize', 9);
+        xlabel('seconds');
+        ylabel('ADC Output');
+    end
+    
+    % Export the layout graphic as a vector PDF
+    [~, baseName, ~] = fileparts(fileName);
+    layoutname = fullfile(outputpath, baseName + ".pdf");
+    
+    exportgraphics(t, layoutname, 'ContentType', 'vector');
+    disp(['Successfully generated: ' char(layoutname)]);
+end
+
+% Close the figure window once at the very end
+close(f);
