@@ -21,6 +21,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "startup_checks.h"
 
 /* USER CODE END Includes */
 
@@ -47,6 +48,8 @@ SPI_HandleTypeDef hspi1;
 PCD_HandleTypeDef hpcd_USB_FS;
 
 /* USER CODE BEGIN PV */
+volatile uint32_t startup_fail_mask = 0; // startup_fail_t bits, 0 = all checks passed
+volatile uint8_t mag_alert = 0; // set by ALERT_N falling edge, clear after handling
 
 /* USER CODE END PV */
 
@@ -98,6 +101,13 @@ int main(void)
   MX_SPI1_Init();
   MX_USB_PCD_Init();
   /* USER CODE BEGIN 2 */
+  startup_fail_mask = startup_checks_run();
+
+  // ALERT_N may already be low from before EXTI was enabled (no edge to catch)
+  if (HAL_GPIO_ReadPin(ALERT_N_GPIO_Port, ALERT_N_Pin) == GPIO_PIN_RESET)
+  {
+    mag_alert = 1;
+  }
 
   /* USER CODE END 2 */
 
@@ -305,12 +315,23 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(CS_N_GPIO_Port, &GPIO_InitStruct);
 
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI0_1_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI0_1_IRQn);
+
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 
   /* USER CODE END MX_GPIO_Init_2 */
 }
 
 /* USER CODE BEGIN 4 */
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+  if (GPIO_Pin == ALERT_N_Pin)
+  {
+    mag_alert = 1;
+  }
+}
 
 /* USER CODE END 4 */
 
