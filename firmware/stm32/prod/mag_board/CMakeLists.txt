@@ -38,7 +38,11 @@ add_executable(${CMAKE_PROJECT_NAME})
 add_subdirectory(cmake/stm32cubemx)
 
 # Add components from firmware/stm32/components
-# add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../components/example_component ${CMAKE_BINARY_DIR}/components/example_component)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../components/tmag5170 ${CMAKE_BINARY_DIR}/components/tmag5170)
+
+# Build options
+option(MAG_BOARD_HW_TESTS "Run board bring-up tests at boot and report them over CAN" OFF)
+option(WERROR "Treat warnings in our code as errors" OFF)
 
 # Link directories setup
 target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
@@ -49,6 +53,7 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
     ${CMAKE_CURRENT_SOURCE_DIR}/src/startup_checks.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/hw_tests.c
 )
 
 # Add include paths
@@ -60,6 +65,7 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
 # Add project symbols (macros)
 target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined symbols
+    $<$<BOOL:${MAG_BOARD_HW_TESTS}>:MAG_BOARD_HW_TESTS>
 )
 
 # Remove wrong libob.a library dependency when using cpp files
@@ -70,4 +76,11 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
     stm32cubemx
 
     # Add user defined libraries
+    tmag5170
 )
+
+if(WERROR)
+    foreach(tgt ${CMAKE_PROJECT_NAME} tmag5170 tmag5170_frame)
+        target_compile_options(${tgt} PRIVATE -Werror)
+    endforeach()
+endif()

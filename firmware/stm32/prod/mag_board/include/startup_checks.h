@@ -22,7 +22,7 @@ typedef enum
     STARTUP_FAIL_ALERT_N_PIN  = 1U << 6,  // PA0 not input / no pull
     STARTUP_FAIL_ALERT_N_EXTI = 1U << 7,  // EXTI0 not routed to PA0, falling edge, unmasked, NVIC enabled
     STARTUP_FAIL_SPI_PINS     = 1U << 8,  // PA5/6/7 not AF0 (SPI1)
-    STARTUP_FAIL_SPI_CONFIG   = 1U << 9,  // SPI1 not master, mode 1, 8 bit, MSB first, soft NSS
+    STARTUP_FAIL_SPI_CONFIG   = 1U << 9,  // SPI1 not master, mode 0, 8 bit, MSB first, soft NSS
     STARTUP_FAIL_SPI_SPEED    = 1U << 10, // SCK not 6 MHz
     STARTUP_FAIL_CAN_PINS     = 1U << 11, // PB8/9 not AF4 (CAN)
     STARTUP_FAIL_CAN_CONFIG   = 1U << 12, // CAN handle not ready / not in init mode

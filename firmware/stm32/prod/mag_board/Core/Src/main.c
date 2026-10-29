@@ -22,6 +22,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "startup_checks.h"
+#include "hw_tests.h"
 
 /* USER CODE END Includes */
 
@@ -102,6 +103,9 @@ int main(void)
   MX_USB_PCD_Init();
   /* USER CODE BEGIN 2 */
   startup_fail_mask = startup_checks_run();
+#ifdef MAG_BOARD_HW_TESTS
+  hw_tests_run(startup_fail_mask);
+#endif
 
   // ALERT_N may already be low from before EXTI was enabled (no edge to catch)
   if (HAL_GPIO_ReadPin(ALERT_N_GPIO_Port, ALERT_N_Pin) == GPIO_PIN_RESET)
@@ -118,6 +122,11 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+#ifdef MAG_BOARD_HW_TESTS
+    // repeat so a listener attached after boot still gets the results
+    hw_tests_report_can();
+    HAL_Delay(1000);
+#endif
   }
   /* USER CODE END 3 */
 }
@@ -222,7 +231,7 @@ static void MX_SPI1_Init(void)
   hspi1.Init.Direction = SPI_DIRECTION_2LINES;
   hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
   hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
-  hspi1.Init.CLKPhase = SPI_PHASE_2EDGE;
+  hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi1.Init.NSS = SPI_NSS_SOFT;
   hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_8;
   hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;

@@ -140,7 +140,7 @@ static uint32_t check_spi(void)
     uint32_t cr2 = SPI1->CR2;
     if ((cr1 & SPI_CR1_MSTR) == 0U ||
         (cr1 & SPI_CR1_CPOL) != 0U ||       // CPOL = 0
-        (cr1 & SPI_CR1_CPHA) == 0U ||       // CPHA = 1 (second edge)
+        (cr1 & SPI_CR1_CPHA) != 0U ||       // CPHA = 0: TMAG5170 latches SDI on rising edge, drives SDO on falling
         (cr1 & SPI_CR1_LSBFIRST) != 0U ||
         (cr1 & SPI_CR1_BIDIMODE) != 0U ||
         (cr1 & (SPI_CR1_SSM | SPI_CR1_SSI)) != (SPI_CR1_SSM | SPI_CR1_SSI) ||
