@@ -197,9 +197,8 @@ void loop() {
     Serial.print(buffer);
 
     // Print each channel in a fixed-width field
-    // for (int i = 0; i < 16; i++) {
-    {
-      int i = 9;
+    for (int i = 0; i < 16; i++) {
+      // int i = 9;
       sprintf(buffer, ",  %10.5f", averages[i]);
       Serial.print(buffer);
     }
