@@ -71,8 +71,8 @@ void setup() {
   setupConfig.setup.ref_buff = true;
   setupConfig.setup.ref_source = EXTERNAL_REF;
   // Choose an output data rate; for example, SPS_2500 (adjust as needed)
-  setupConfig.filter_config.odr = SPS_50;
-  setupConfig.gain = 1.0f;
+  setupConfig.filter_config.odr = SPS_2500;
+  setupConfig.gain = 0.9935f;
   initParams.setups.push_back(setupConfig);
 
   // Configure channel mapping for all 16 channels.
@@ -82,11 +82,11 @@ void setup() {
     initParams.chan_map[i].setup_sel = 0;            // All channels use setup 0
     // Configure inputs: assume single-ended; positive input is channel number, negative tied to REF_M.
     initParams.chan_map[i].inputs.ainp.pos_input = static_cast<ad717x_analog_input_t>(i);
-    initParams.chan_map[i].inputs.ainp.neg_input = AVDD_AVSS_M;
+    initParams.chan_map[i].inputs.ainp.neg_input = REF_M;
   }
 
   // Initialize the ADC (using a 5MHz SPI clock).
-  int initResult = adcDriver.init(initParams, &SPI1, ADC_CS_PIN, SPISettings(50000000, MSBFIRST, SPI_MODE3));
+  int initResult = adcDriver.init(initParams, &SPI1, ADC_CS_PIN, SPISettings(5000000, MSBFIRST, SPI_MODE3));
   Serial.print("ADC init result: ");
   Serial.println(initResult);
   if (initResult < 0) {
@@ -182,7 +182,7 @@ void loop() {
     double averages[16];
     for (int i = 0; i < 16; i++) {
       if (tempCount[i] > 0) {
-        averages[i] = (static_cast<double>(tempSum[i]) / tempCount[i])/16777216.0f * 5.0f;
+        averages[i] = (static_cast<double>(tempSum[i]) / tempCount[i])/16777216.0f * 5.0f / 0.75;
       } else {
         averages[i] = 0.0;
       }
@@ -200,7 +200,7 @@ void loop() {
     // for (int i = 0; i < 16; i++) {
     {
       int i = 9;
-      sprintf(buffer, ",  %10.2f", averages[i]);
+      sprintf(buffer, ",  %10.5f", averages[i]);
       Serial.print(buffer);
     }
     Serial.println();

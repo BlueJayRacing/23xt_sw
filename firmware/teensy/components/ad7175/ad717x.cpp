@@ -107,9 +107,21 @@ int32_t AD717X::init(ad717x_init_param_t& t_init_param, SPIClass* t_spi_host, in
         return ret;
     device_.active_device = t_init_param.active_device;
 
+    ad717x_st_reg_t * setup_reg = getReg(AD717X_SETUPCON0_REG);
+    Serial.println(setup_reg->size);
+    if(readRegister(setup_reg) < 0){
+        Serial.println("err");
+    }
+    Serial.print("setup reg: ");
+    Serial.println(setup_reg->value, BIN);
+
     for (setup_i = 0; setup_i < t_init_param.setups.size(); setup_i++) {
         // Set Polarity
         ret = setPolarity(t_init_param.setups.at(setup_i).setup.bi_polar, setup_i);
+        if (ret < 0)
+            return ret;
+
+        ret = setBurnOut(0, setup_i);
         if (ret < 0)
             return ret;
 
@@ -119,8 +131,7 @@ int32_t AD717X::init(ad717x_init_param_t& t_init_param, SPIClass* t_spi_host, in
             return ret;
 
         // Enable reference and input buffers
-        ret = enableBuffers(t_init_param.setups.at(setup_i).setup.input_buff,
-                            t_init_param.setups.at(setup_i).setup.ref_buff, setup_i);
+        ret = enableBuffers(t_init_param.setups.at(setup_i).setup.input_buff, t_init_param.setups.at(setup_i).setup.ref_buff, setup_i);
         if (ret < 0)
             return ret;
 
@@ -163,6 +174,23 @@ int32_t AD717X::init(ad717x_init_param_t& t_init_param, SPIClass* t_spi_host, in
         if (ret < 0)
             return ret;
     }
+
+    ad717x_st_reg_t * gain_reg = getReg(AD717X_GAIN0_REG);
+    if(readRegister(AD717X_GAIN0_REG) < 0)
+        Serial.println("error reading gain");
+
+    ad717x_st_reg_t * offset_reg = getReg(AD717X_OFFSET0_REG);
+    offset_reg->value = 0x800000;
+
+    writeRegister(offset_reg->addr);
+
+    if(readRegister(AD717X_OFFSET0_REG) < 0)
+        Serial.println("error reading offset reg");
+
+    Serial.print("Gain reg: ");
+    Serial.println(gain_reg->value);
+    Serial.print("Offset reg: ");
+    Serial.println(offset_reg->value);
 
     return 0;
 }
@@ -696,6 +724,26 @@ int32_t AD717X::setPolarity(bool t_bipolar, uint8_t t_setup_id)
     return 0;
 }
 
+int32_t AD717X::setBurnOut(bool burnout, uint8_t setup_id) {
+    ad717x_st_reg_t* setup_reg;
+
+    // Retrieve the SETUPCON Register
+    setup_reg = getReg(AD717X_SETUPCON0_REG + setup_id);
+    if (!setup_reg)
+        return -EINVAL;
+
+    // Set the BI_UNIPOLAR bit in case of BIPOLAR operation
+    if (burnout)
+        setup_reg->value |= (1<<7);
+    else
+        setup_reg->value &= ~(1<<7);
+
+    if (writeRegister(AD717X_SETUPCON0_REG + setup_id) < 0)
+        return -EINVAL;
+
+    return 0;
+}
+
 /*******************************************************************************
  * @brief Select the reference source
  *
@@ -889,7 +937,7 @@ int32_t AD717X::setGain(double gain, uint8_t t_setup_id)
     }
 
     // Clear the ODR bits, configure the requested ODR
-    gain_reg->value = (uint32_t)(gain * 0x555555);
+    gain_reg->value = (uint32_t)(gain * 0x400000);
 
     if (writeRegister(AD717X_GAIN0_REG + t_setup_id) < 0)
         return -EINVAL;

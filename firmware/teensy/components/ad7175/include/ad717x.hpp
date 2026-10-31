@@ -532,6 +532,7 @@ class AD717X {
     int32_t connectAnalogInput(uint8_t t_channel_id, ad717x_analog_inputs_t t_analog_input);
     int32_t assignSetup(uint8_t t_channel_id, uint8_t t_setup_id);
     int32_t setPolarity(bool t_bipolar, uint8_t t_setup_id);
+    int32_t setBurnOut(bool burnout, uint8_t setup_id);
     int32_t setReferenceSource(ad717x_ref_source_t t_ref_source, uint8_t t_setup_id);
     int32_t enableBuffers(bool t_inbuf_en, bool t_refbuf_en, uint8_t t_setup_id);
     int32_t singleReadData(uint8_t t_channel_id, ad717x_data_t* t_p_data);
