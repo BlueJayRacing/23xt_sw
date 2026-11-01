@@ -116,12 +116,50 @@ static void test_classify(void)
     CHECK(tmag5170_classify_sdo(good ^ 0x00010000U) != TMAG5170_SDO_OK, "single data bit flip not detected");
 }
 
+static void test_field_conversion(void)
+{
+    // Equation 1: B = raw * range / 32768, output in 0.01 mT, rounded to nearest
+    CHECK(tmag5170_raw_sum_to_centi_mt(0, 1, 150) == 0, "zero");
+    CHECK(tmag5170_raw_sum_to_centi_mt(32767, 1, 150) == 15000, "+full scale: %ld",
+          (long)tmag5170_raw_sum_to_centi_mt(32767, 1, 150)); // 14999.54
+    CHECK(tmag5170_raw_sum_to_centi_mt(-32768, 1, 150) == -15000, "-full scale");
+    CHECK(tmag5170_raw_sum_to_centi_mt(16384, 1, 150) == 7500, "half scale");
+    CHECK(tmag5170_raw_sum_to_centi_mt(10 * 16384, 10, 150) == 7500, "average of 10");
+    CHECK(tmag5170_raw_sum_to_centi_mt(10 * 32767, 10, 300) == 29999, "300 mT range, no overflow: %ld",
+          (long)tmag5170_raw_sum_to_centi_mt(10 * 32767, 10, 300)); // 29999.08
+    CHECK(tmag5170_raw_sum_to_centi_mt(10 * -32768, 10, 300) == -30000, "300 mT range negative");
+    CHECK(tmag5170_raw_sum_to_centi_mt(-1, 1, 150) == 0, "-0.46 rounds to 0");
+    CHECK(tmag5170_raw_sum_to_centi_mt(-2, 1, 150) == -1, "-0.92 rounds to -1");
+    CHECK(tmag5170_raw_sum_to_centi_mt(2, 1, 150) == 1, "0.92 rounds to 1");
+    CHECK(tmag5170_raw_sum_to_centi_mt(12345, 0, 150) == 0, "n = 0");
+}
+
+static void test_command_and_status_bits(void)
+{
+    // Figure 7-10: CMD0 is bit 4
+    uint32_t r = tmag5170_build_read(TMAG5170_REG_Z_CH_RESULT, TMAG5170_CMD_START_CONVERSION);
+    CHECK(((r >> 4) & 0xFU) == 0x1U && tmag5170_crc_ok(r), "start-conversion read frame wrong: 0x%08X", r);
+
+    // Figure 7-11: STAT[2:0] (SET_COUNT) at bits 6:4, ERROR_STAT bit 7, CFG_RESET bit 30
+    uint32_t sdo = (1UL << 30) | (1UL << 7) | (5UL << 4);
+    CHECK(tmag5170_sdo_set_count(sdo) == 5U, "set_count wrong");
+    CHECK((sdo & TMAG5170_SDO_ERROR_STAT) && (sdo & TMAG5170_SDO_CFG_RESET), "status masks wrong");
+
+    // SENSOR_CONFIG used by mag_app: X/Y/Z enabled, default range
+    CHECK((TMAG5170_MAG_CH_EN(7) | TMAG5170_X_RANGE(0) | TMAG5170_Y_RANGE(0) | TMAG5170_Z_RANGE(0)) == 0x01C0U,
+          "SENSOR_CONFIG XYZ wrong");
+    CHECK((TMAG5170_CONV_AVG(3) | TMAG5170_OPERATING_MODE(TMAG5170_MODE_ACTIVE_TRIGGER)) == 0x3030U,
+          "DEVICE_CONFIG 8x active trigger wrong");
+}
+
 int main(void)
 {
     test_datasheet_example();
     test_crc_matches_equations();
     test_frame_layout();
     test_classify();
+    test_field_conversion();
+    test_command_and_status_bits();
 
     if (failures)
     {

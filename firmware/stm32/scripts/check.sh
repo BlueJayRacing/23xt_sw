@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Runs everything that can be checked without hardware:
 #   1. host unit tests (test/*_host)
-#   2. every prod project, normal and with MAG_BOARD_HW_TESTS, warnings as errors
+#   2. every prod project as the app and as each test suite (SPI, CAN), warnings as errors
 # Exits non-zero on the first failure. Run from anywhere.
 set -euo pipefail
 
@@ -20,10 +20,9 @@ echo "== firmware builds"
 for p in "$STM32_DIR"/prod/*/; do
     [ -f "$p/CMakePresets.json" ] || continue
     name="$(basename "$p")"
-    for variant in normal hwtests; do
-        echo "-- $name ($variant)"
-        flags=(-DWERROR=ON)
-        [ "$variant" = hwtests ] && flags+=(-DMAG_BOARD_HW_TESTS=ON)
+    for variant in OFF SPI CAN; do
+        echo "-- $name (test suite: $variant)"
+        flags=(-DWERROR=ON -DMAG_BOARD_TEST_SUITE=$variant)
         (cd "$p" && cmake --preset Debug -B "build/check-$variant" "${flags[@]}" > /dev/null \
                  && cmake --build "build/check-$variant")
     done

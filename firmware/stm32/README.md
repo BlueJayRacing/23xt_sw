@@ -68,25 +68,34 @@ Open the project's `.ioc` in STM32CubeMX, change things, and hit **Generate Code
 
 Runs the host unit tests in `test/*_host` (plain `cc` on your computer, no board needed) and builds every prod project twice (normal, and with bring-up tests) with warnings as errors. Run it before pushing.
 
-`test/tmag5170_host` checks the TMAG5170 frame packing and CRC against the datasheet (SBAS934A, 7.5.2.5): the `0x0F000407` example frame and the CRC XOR equations.
+- `test/tmag5170_host` checks the TMAG5170 frame packing and CRC against the datasheet (SBAS934A, 7.5.2.5): the `0x0F000407` example frame and the CRC XOR equations. Also the raw-to-mT conversion.
+- `test/mag_board_host` checks the CAN message byte layout against [firmware/can/can_spec.md](../can/can_spec.md).
 
 ### Board bring-up (mag_board)
 
-Build with the bring-up tests enabled and flash:
+There are two separate test suites, built in place of the normal app:
+
+| Suite | Build flag | Tests | Reports over |
+|---|---|---|---|
+| SPI | `-DMAG_BOARD_TEST_SUITE=SPI` | config, pin idle levels, SPI read, sensor status, SPI write/read-back, ALERT, live sensor reads. Never touches CAN | USB serial |
+| CAN | `-DMAG_BOARD_TEST_SUITE=CAN` | config, CAN loopback, one frame on the real bus (needs another node to ACK). Never touches the sensor | CAN and USB serial |
 
 ```sh
 cd prod/mag_board
-cmake --preset Debug -DMAG_BOARD_HW_TESTS=ON
+cmake --preset Debug -DMAG_BOARD_TEST_SUITE=SPI   # or CAN
 cmake --build --preset Debug
+# flash, then for normal firmware again:
+cmake --preset Debug -DMAG_BOARD_TEST_SUITE=OFF
 ```
 
-At boot the board runs the tests once, then sends the results over CAN (125 kbit/s) every second. You need a second CAN node on the bus to receive them (and to ACK the frames).
+The setting is cached in `build/`, so it stays until you change it.
 
-- `0x7A0` summary: bytes 0-3 `startup_fail_mask` (little endian), byte 4 number of failed tests, byte 5 number of tests, byte 6 sensor power-up flag seen
-- `0x7A1` one per test: byte 0 test id, byte 1 result code, bytes 2-5 detail (little endian)
+**Reading the results over USB:** plug the board's USB into your computer and open the serial port (e.g. the VSCode Serial Monitor, or `screen /dev/tty.usbmodem* 115200` on Mac; the baud number doesn't matter for USB). Each test prints one line with its result name and a detail word. The SPI suite then streams live X/Y/Z at 10 Hz and re-prints the results every 10 s.
 
-Test ids and result codes are in [prod/mag_board/include/hw_tests.h](prod/mag_board/include/hw_tests.h), and `startup_fail_mask` bits are in [startup_checks.h](prod/mag_board/include/startup_checks.h). Result `1` is pass. Everything >= 10 is a specific failure, with the detail word explained next to each code (usually the raw SPI response).
+USB output needs the CDC middleware, which CubeMX generates: in `mag_board.ioc` enable **Middleware → USB_DEVICE → Communication Device Class**, and **RCC → CRS, SYNC source USB** (USB needs the clock trimmed to it), then Generate Code. Until then the suites still run but print nothing.
 
-If the sensor ALERT test fails, the board waits 10 s for you to touch PA0 (ALERT_N) to GND. If that passes, the MCU side is fine and the problem is on the sensor side.
+**Reading the CAN suite over CAN:** results are on IDs `0x7A0`/`0x7A1`, see [firmware/can/can_spec.md](../can/can_spec.md). Load [firmware/can/23xt.dbc](../can/23xt.dbc) into your CAN tool to decode them.
 
-Rebuild without `-DMAG_BOARD_HW_TESTS=ON` (or with `=OFF`) for normal firmware.
+Test ids, result codes and what each detail word means: [prod/mag_board/include/hw_results.h](prod/mag_board/include/hw_results.h). `startup_fail_mask` bits: [startup_checks.h](prod/mag_board/include/startup_checks.h).
+
+If the SPI suite's ALERT test fails, it waits 10 s for you to touch PA0 (ALERT_N) to GND (it prints a prompt). If that passes, the MCU side is fine and the problem is on the sensor side.

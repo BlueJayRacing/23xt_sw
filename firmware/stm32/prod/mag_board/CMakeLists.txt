@@ -41,7 +41,16 @@ add_subdirectory(cmake/stm32cubemx)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../components/tmag5170 ${CMAKE_BINARY_DIR}/components/tmag5170)
 
 # Build options
-option(MAG_BOARD_HW_TESTS "Run board bring-up tests at boot and report them over CAN" OFF)
+set(MAG_BOARD_TEST_SUITE "OFF" CACHE STRING "Bring-up test suite to build instead of the app: OFF, SPI or CAN")
+set_property(CACHE MAG_BOARD_TEST_SUITE PROPERTY STRINGS OFF SPI CAN)
+if(NOT MAG_BOARD_TEST_SUITE MATCHES "^(OFF|SPI|CAN)$")
+    message(FATAL_ERROR "MAG_BOARD_TEST_SUITE must be OFF, SPI or CAN (got '${MAG_BOARD_TEST_SUITE}')")
+endif()
+if(MAG_BOARD_HW_TESTS)
+    message(FATAL_ERROR "MAG_BOARD_HW_TESTS was replaced by -DMAG_BOARD_TEST_SUITE=SPI or CAN. "
+                        "Reconfigure with -DMAG_BOARD_HW_TESTS=OFF -DMAG_BOARD_TEST_SUITE=...")
+endif()
+message("Test suite: ${MAG_BOARD_TEST_SUITE}")
 option(WERROR "Treat warnings in our code as errors" OFF)
 
 # Link directories setup
@@ -53,7 +62,13 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
     ${CMAKE_CURRENT_SOURCE_DIR}/src/startup_checks.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/hw_tests.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/hw_results.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/spi_suite.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/can_suite.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/mag_sensor.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/usb_log.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/mag_app.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/mag_can.c
 )
 
 # Add include paths
@@ -65,7 +80,8 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
 # Add project symbols (macros)
 target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined symbols
-    $<$<BOOL:${MAG_BOARD_HW_TESTS}>:MAG_BOARD_HW_TESTS>
+    $<$<STREQUAL:${MAG_BOARD_TEST_SUITE},SPI>:MAG_BOARD_TEST_SPI>
+    $<$<STREQUAL:${MAG_BOARD_TEST_SUITE},CAN>:MAG_BOARD_TEST_CAN>
 )
 
 # Remove wrong libob.a library dependency when using cpp files

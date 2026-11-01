@@ -35,6 +35,19 @@ int tmag5170_crc_ok(uint32_t frame)
     return (frame & 0xFU) == tmag5170_crc4(frame);
 }
 
+int32_t tmag5170_raw_sum_to_centi_mt(int32_t raw_sum, uint32_t n, uint16_t range_mt)
+{
+    if (n == 0U)
+    {
+        return 0;
+    }
+    // 64-bit: 10 samples * 32768 * 300 mT * 100 overflows 32 bits
+    int64_t num = (int64_t)raw_sum * range_mt * 100;
+    int64_t den = (int64_t)n * 32768;
+    // round half away from zero (C division truncates toward zero)
+    return (int32_t)(num >= 0 ? (num + den / 2) / den : (num - den / 2) / den);
+}
+
 tmag5170_sdo_class_t tmag5170_classify_sdo(uint32_t sdo)
 {
     if (sdo == 0xFFFFFFFFU)

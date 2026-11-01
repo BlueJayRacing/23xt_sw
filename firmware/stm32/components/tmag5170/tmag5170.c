@@ -33,8 +33,14 @@ static tmag5170_sdo_class_t do_frame(const tmag5170_t *dev, uint32_t sdi, uint32
 
 tmag5170_sdo_class_t tmag5170_read(const tmag5170_t *dev, uint8_t addr, uint16_t *data, uint32_t *raw_sdo)
 {
+    return tmag5170_read_cmd(dev, addr, 0, data, raw_sdo);
+}
+
+tmag5170_sdo_class_t tmag5170_read_cmd(const tmag5170_t *dev, uint8_t addr, uint8_t cmd, uint16_t *data,
+                                       uint32_t *raw_sdo)
+{
     uint32_t sdo = 0;
-    tmag5170_sdo_class_t cls = do_frame(dev, tmag5170_build_read(addr, 0), &sdo);
+    tmag5170_sdo_class_t cls = do_frame(dev, tmag5170_build_read(addr, cmd), &sdo);
     if (data)
     {
         *data = tmag5170_sdo_data(sdo);

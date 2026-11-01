@@ -22,6 +22,9 @@ HAL_StatusTypeDef tmag5170_transfer(const tmag5170_t *dev, uint32_t sdi, uint32_
 // and receives the SDO frame for diagnostics. Returns the SDO classification, or
 // TMAG5170_SDO_SPI_ERROR if the HAL transfer itself failed.
 tmag5170_sdo_class_t tmag5170_read(const tmag5170_t *dev, uint8_t addr, uint16_t *data, uint32_t *raw_sdo);
+// Same as tmag5170_read with CMD bits, e.g. TMAG5170_CMD_START_CONVERSION
+tmag5170_sdo_class_t tmag5170_read_cmd(const tmag5170_t *dev, uint8_t addr, uint8_t cmd, uint16_t *data,
+                                       uint32_t *raw_sdo);
 tmag5170_sdo_class_t tmag5170_write(const tmag5170_t *dev, uint8_t addr, uint16_t data, uint32_t *raw_sdo);
 
 #endif

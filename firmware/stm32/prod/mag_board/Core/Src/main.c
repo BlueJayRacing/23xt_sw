@@ -22,7 +22,9 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "startup_checks.h"
-#include "hw_tests.h"
+#include "spi_suite.h"
+#include "can_suite.h"
+#include "mag_app.h"
 
 /* USER CODE END Includes */
 
@@ -103,8 +105,12 @@ int main(void)
   MX_USB_PCD_Init();
   /* USER CODE BEGIN 2 */
   startup_fail_mask = startup_checks_run();
-#ifdef MAG_BOARD_HW_TESTS
-  hw_tests_run(startup_fail_mask);
+#if defined(MAG_BOARD_TEST_SPI)
+  spi_suite_run(startup_fail_mask);
+#elif defined(MAG_BOARD_TEST_CAN)
+  can_suite_run(startup_fail_mask);
+#else
+  mag_app_init(startup_fail_mask);
 #endif
 
   // ALERT_N may already be low from before EXTI was enabled (no edge to catch)
@@ -122,10 +128,12 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-#ifdef MAG_BOARD_HW_TESTS
-    // repeat so a listener attached after boot still gets the results
-    hw_tests_report_can();
-    HAL_Delay(1000);
+#if defined(MAG_BOARD_TEST_SPI)
+    spi_suite_poll();
+#elif defined(MAG_BOARD_TEST_CAN)
+    can_suite_poll();
+#else
+    mag_app_poll();
 #endif
   }
   /* USER CODE END 3 */

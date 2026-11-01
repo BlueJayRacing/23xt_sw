@@ -34,6 +34,34 @@
 // Reset values used by tests
 #define TMAG5170_X_THRX_CONFIG_RESET   0x7D83U
 
+// DEVICE_CONFIG fields (Table 7-6)
+#define TMAG5170_CONV_AVG(n)           (((uint16_t)(n) & 0x7U) << 12) // 0 = 1x ... 3 = 8x (1.6 ksps 3-axis) ... 5 = 32x
+#define TMAG5170_OPERATING_MODE(n)     (((uint16_t)(n) & 0x7U) << 4)
+#define TMAG5170_MODE_CONFIG           0U
+#define TMAG5170_MODE_STANDBY          1U
+#define TMAG5170_MODE_ACTIVE_MEASURE   2U
+#define TMAG5170_MODE_ACTIVE_TRIGGER   3U
+
+// SENSOR_CONFIG fields (Table 7-7)
+#define TMAG5170_MAG_CH_EN(n)          (((uint16_t)(n) & 0xFU) << 6)  // 7 = X, Y, Z
+#define TMAG5170_Z_RANGE(n)            (((uint16_t)(n) & 0x3U) << 4)
+#define TMAG5170_Y_RANGE(n)            (((uint16_t)(n) & 0x3U) << 2)
+#define TMAG5170_X_RANGE(n)            ((uint16_t)(n) & 0x3U)
+// range codes: A1 / A2 full scale
+#define TMAG5170_RANGE_50_150          0U // +-50 mT (A1) / +-150 mT (A2), default
+#define TMAG5170_RANGE_25_75           1U // +-25 mT (A1) / +-75 mT (A2)
+#define TMAG5170_RANGE_100_300         2U // +-100 mT (A1) / +-300 mT (A2)
+
+// SDI CMD field (Figure 7-10)
+#define TMAG5170_CMD_START_CONVERSION  0x1U // CMD0: start conversion when CS goes high
+
+// SDO status bits in a regular read (Figure 7-11), positions within the 32-bit frame
+#define TMAG5170_SDO_PREV_CRC_STAT     (1UL << 31) // CRC error in the previous SDI frame
+#define TMAG5170_SDO_CFG_RESET         (1UL << 30) // device has reset since AFE_STATUS was last read
+#define TMAG5170_SDO_ERROR_STAT        (1UL << 7)  // any error bit set in the device
+#define TMAG5170_SDO_SET_COUNT_SHIFT   4U          // STAT[2:0] = SET_COUNT when CMD1 = 0 in the previous frame
+#define TMAG5170_SDO_SET_COUNT_MASK    0x7U
+
 // ALERT_CONFIG fields (Table 7-9)
 #define TMAG5170_ALERT_LATCH           (1U << 13)
 #define TMAG5170_ALERT_MODE_SWITCH     (1U << 12)
@@ -78,6 +106,17 @@ int tmag5170_crc_ok(uint32_t frame);
 static inline uint16_t tmag5170_sdo_data(uint32_t sdo)    { return (uint16_t)(sdo >> 8); }
 static inline uint8_t  tmag5170_sdo_stat_hi(uint32_t sdo) { return (uint8_t)(sdo >> 24); } // STAT11..STAT4
 static inline uint8_t  tmag5170_sdo_stat_lo(uint32_t sdo) { return (uint8_t)((sdo >> 4) & 0xFU); } // STAT3..STAT0
+
+static inline uint8_t tmag5170_sdo_set_count(uint32_t sdo)
+{
+    return (uint8_t)((sdo >> TMAG5170_SDO_SET_COUNT_SHIFT) & TMAG5170_SDO_SET_COUNT_MASK);
+}
+
+// Converts a sum of n raw 16-bit results to the average field in units of 0.01 mT,
+// rounded to nearest. range_mt is the configured full scale (e.g. 150 for +-150 mT).
+// Datasheet Equation 1: B = raw / 2^16 * 2 * range = raw * range / 32768.
+// Returns 0 if n is 0.
+int32_t tmag5170_raw_sum_to_centi_mt(int32_t raw_sum, uint32_t n, uint16_t range_mt);
 
 typedef enum
 {
