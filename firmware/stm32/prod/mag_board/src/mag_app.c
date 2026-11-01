@@ -1,6 +1,7 @@
 #include "mag_app.h"
 #include "mag_can.h"
 #include "main.h"
+#include "startup_checks.h"
 
 // Peripheral handles from main.c
 extern CAN_HandleTypeDef hcan;
@@ -8,6 +9,7 @@ extern CAN_HandleTypeDef hcan;
 static struct
 {
     uint32_t startup_fail_mask;
+    uint32_t node;           // from option byte Data0, 0xFF when never programmed
     int sensor_ok;           // configured and in active trigger mode
 
     // 1 kHz sampling
@@ -110,9 +112,13 @@ static void send_field(void)
         msg.status |= MAG_STATUS_STARTUP_FAILED;
     }
 
-    uint8_t buf[MAG_CAN_FIELD_DLC];
-    mag_can_pack_field(&msg, buf);
-    send_can(MAG_CAN_ID_FIELD, buf, MAG_CAN_FIELD_DLC);
+    // without a node number this board's ID would collide with another board's
+    if (mag_can_node_valid(app.node))
+    {
+        uint8_t buf[MAG_CAN_FIELD_DLC];
+        mag_can_pack_field(&msg, buf);
+        send_can(mag_can_field_id(app.node), buf, MAG_CAN_FIELD_DLC);
+    }
 
     app.sum[0] = app.sum[1] = app.sum[2] = 0;
     app.n = 0;
@@ -129,7 +135,7 @@ static void send_status(void)
     };
     uint8_t buf[MAG_CAN_STATUS_DLC];
     mag_can_pack_status(&msg, buf);
-    send_can(MAG_CAN_ID_STATUS, buf, MAG_CAN_STATUS_DLC);
+    send_can(mag_can_status_id(app.node), buf, MAG_CAN_STATUS_DLC);
 
     app.spi_errors = 0;
     app.missed_samples = 0;
@@ -137,10 +143,25 @@ static void send_status(void)
 
 void mag_app_init(uint32_t startup_fail_mask)
 {
+    // set per board with: STM32_Programmer_CLI -c port=usb1 -ob Data0=<node>
+    app.node = HAL_FLASHEx_OBGetUserData(OB_DATA_ADDRESS_DATA0);
+    if (!mag_can_node_valid(app.node))
+    {
+        startup_fail_mask |= STARTUP_FAIL_NODE_ID;
+    }
     app.startup_fail_mask = startup_fail_mask;
     app.sensor_ok = mag_sensor_configure();
 
-    // TX only, so no filter needed; MX_CAN_Init left the controller in init mode
+    // Shared bus: retry frames that lose arbitration or hit an error, and rejoin the bus on
+    // our own after bus-off. Set here rather than in CubeMX so the CAN test suite keeps
+    // single-shot transmission. MX_CAN_Init left the controller in init mode, where MCR
+    // is writable.
+    hcan.Init.AutoRetransmission = ENABLE;
+    hcan.Init.AutoBusOff = ENABLE;
+    SET_BIT(hcan.Instance->MCR, CAN_MCR_ABOM);
+    CLEAR_BIT(hcan.Instance->MCR, CAN_MCR_NART);
+
+    // TX only, so no filter needed
     HAL_CAN_Start(&hcan);
 
     app.last_tick = HAL_GetTick();

@@ -6,6 +6,21 @@ static void put_u16_le(uint8_t *buf, uint16_t v)
     buf[1] = (uint8_t)(v >> 8);
 }
 
+int mag_can_node_valid(uint32_t node)
+{
+    return node < MAG_CAN_NODE_COUNT;
+}
+
+uint32_t mag_can_field_id(uint32_t node)
+{
+    return MAG_CAN_ID_FIELD_BASE + node;
+}
+
+uint32_t mag_can_status_id(uint32_t node)
+{
+    return mag_can_node_valid(node) ? MAG_CAN_ID_STATUS_BASE + node : MAG_CAN_ID_STATUS_NO_NODE;
+}
+
 int16_t mag_can_clamp_i16(int32_t v)
 {
     if (v > INT16_MAX)

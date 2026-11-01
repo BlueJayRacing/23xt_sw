@@ -28,6 +28,7 @@ typedef enum
     STARTUP_FAIL_CAN_CONFIG   = 1U << 12, // CAN handle not ready / not in init mode
     STARTUP_FAIL_CAN_BAUD     = 1U << 13, // CAN bit timing not 125 kbit/s
     STARTUP_FAIL_USB          = 1U << 14, // USB not clocked from HSI48 or handle not ready
+    STARTUP_FAIL_NODE_ID      = 1U << 15, // option byte Data0 not a valid node number (set by mag_app_init)
 } startup_fail_t;
 
 // Run after all MX_*_Init() calls. Returns 0 if everything passed,

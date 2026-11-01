@@ -7,8 +7,12 @@
 
 #include <stdint.h>
 
-#define MAG_CAN_ID_FIELD   0x120U // 100 Hz
-#define MAG_CAN_ID_STATUS  0x121U // 1 Hz
+// One MAG_FIELD and one MAG_STATUS ID per board. The node number is read from option
+// byte Data0 so every board runs the same image.
+#define MAG_CAN_NODE_COUNT          4U
+#define MAG_CAN_ID_FIELD_BASE       0x120U // 100 Hz, + node: 0x120..0x123
+#define MAG_CAN_ID_STATUS_BASE      0x128U // 1 Hz, + node: 0x128..0x12B
+#define MAG_CAN_ID_STATUS_NO_NODE   0x12FU // MAG_STATUS from a board with no valid node number
 
 #define MAG_CAN_FIELD_DLC  8U
 #define MAG_CAN_STATUS_DLC 8U
@@ -36,6 +40,14 @@ typedef struct
     uint8_t spi_errors;       // in the last second, saturating
     uint8_t missed_samples;   // in the last second, saturating
 } mag_status_msg_t;
+
+int mag_can_node_valid(uint32_t node);
+
+// node must be valid; a board without a valid node number sends no MAG_FIELD
+uint32_t mag_can_field_id(uint32_t node);
+
+// MAG_CAN_ID_STATUS_NO_NODE if node is not valid
+uint32_t mag_can_status_id(uint32_t node);
 
 // Clamps to the int16 range so out-of-range values saturate instead of wrapping
 int16_t mag_can_clamp_i16(int32_t v);
