@@ -60,6 +60,7 @@ void Error_Handler(void);
 /* Private defines -----------------------------------------------------------*/
 #define ALERT_N_Pin GPIO_PIN_0
 #define ALERT_N_GPIO_Port GPIOA
+#define ALERT_N_EXTI_IRQn EXTI0_1_IRQn
 #define SCLK_Pin GPIO_PIN_5
 #define SCLK_GPIO_Port GPIOA
 #define MISO_Pin GPIO_PIN_6
