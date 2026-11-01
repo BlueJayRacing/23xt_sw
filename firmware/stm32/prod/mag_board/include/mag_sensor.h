@@ -10,7 +10,7 @@
 // Sensor configuration. Board has a TMAG5170A2, so range code 0 = +-150 mT.
 #define MAG_RANGE_CODE TMAG5170_RANGE_50_150
 #define MAG_RANGE_MT   150U // must match MAG_RANGE_CODE for the A2 variant
-#define MAG_CONV_AVG   3U   // 8x averaging: ~625 us per X/Y/Z set, fits a 1 ms period
+#define MAG_CONV_AVG   1U   // 2x averaging: 5.7 ksps per axis, ~0.53 ms per X/Y/Z set, fits a 1 ms period
 
 // SPI1 + CS_N on this board
 extern const tmag5170_t mag_sensor_dev;
