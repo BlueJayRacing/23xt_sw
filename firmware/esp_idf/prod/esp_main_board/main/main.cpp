@@ -7,10 +7,23 @@
 
 // #define NO_TEENSY true
 
-gpio_num_t handshake_pin = GPIO_NUM_2;
-#define SPI_SIZE 116
+gpio_num_t handshake_pin = GPIO_NUM_3;
+
+#define SPI_SIZE 200
+#define MAGIC_NUMBER 0xDEADBEEF
 
 static const char* TAG = "main";
+
+// void to_recv(spi_slave_transaction_t * trans) { gpio_set_level(handshake_pin, 1); }
+// void sent(spi_slave_transaction_t * trans) { gpio_set_level(handshake_pin, 0); }
+
+bool validate_magic(uint8_t * buf) {
+    for (int i = 0; i < 3; i++) {
+        if ((MAGIC_NUMBER >> (i * 8) & 0xFF) != buf[i]) return false;
+    }
+
+    return true;
+}
 
 void spi_read_loop(BLEMeshDriver& driver)
 {
@@ -28,7 +41,9 @@ void spi_read_loop(BLEMeshDriver& driver)
 
     slave_config.flags         = 0;
     slave_config.queue_size    = 4;
-    slave_config.mode          = 1;
+    slave_config.mode          = 2;
+    // slave_config.post_setup_cb = to_recv;
+    // slave_config.post_trans_cb = sent;
 
     gpio_config_t handshake_cfg = {};
     handshake_cfg.pin_bit_mask  = (1ULL << handshake_pin);
@@ -61,22 +76,24 @@ void spi_read_loop(BLEMeshDriver& driver)
     WORD_ALIGNED_ATTR uint8_t * sendbuf;
     WORD_ALIGNED_ATTR uint8_t * recvbuf;
 
-    sendbuf = static_cast<uint8_t *>(spi_bus_dma_memory_alloc(SPI2_HOST, 1, 0));
+    sendbuf = static_cast<uint8_t *>(spi_bus_dma_memory_alloc(SPI2_HOST, SPI_SIZE, 0));
     recvbuf = static_cast<uint8_t *>(spi_bus_dma_memory_alloc(SPI2_HOST, SPI_SIZE, 0));
 
     assert(sendbuf != nullptr);
     assert(recvbuf != nullptr);
 
-    memset(sendbuf, 0, 1);
+    memset(sendbuf, 0, SPI_SIZE);
     memset(recvbuf, 0, SPI_SIZE);
 
 #ifndef NO_TEENSY
     std::vector<uint8_t> payload;
     while (1) {
         payload.clear();
+        memset(sendbuf, 0, SPI_SIZE);
+        memset(recvbuf, 0, SPI_SIZE);
 
         spi_slave_transaction_t wsg_trans = {};
-        wsg_trans.length = 1 << 3;
+        wsg_trans.length = SPI_SIZE << 3;
         wsg_trans.tx_buffer = sendbuf;
         wsg_trans.rx_buffer = recvbuf;
 
@@ -90,10 +107,23 @@ void spi_read_loop(BLEMeshDriver& driver)
 
         gpio_set_level(handshake_pin, 0);
         uint8_t * data = (uint8_t *) result->rx_buffer;
-        ESP_LOGI(TAG, "got data with man id of %02x %02x", data[0], data[1]);
-        payload.insert(payload.end(), data, data + SPI_SIZE);
+        ESP_LOGI(TAG, "got data with man id of %d %d, %d, %d", data[0], data[1], data[2], data[3]);
+        // std::vector<uint8_t> magic_buf(payload.end() - 4, payload.end());
+        if (true) {// validate_magic(magic_buf.data())) {
+            
+            payload.insert(payload.end(), data, data + SPI_SIZE);
+            ESP_LOGW(TAG, "PAYLOAD SIZE %d", payload.size());
 
-        driver.set_adv_payload(payload);
+            esp_err_t ret = driver.stop_advertising();
+            ESP_LOGI(TAG, "DID STOP %s", esp_err_to_name(ret));
+            vTaskDelay(10);
+            ret = driver.set_adv_payload(payload);
+            vTaskDelay(10);
+            driver.start_advertising(false);
+            ESP_LOGI(TAG, "ERR %s", esp_err_to_name(ret));
+        } else {
+            ESP_LOGE(TAG, "Invalid magic number, message not sent");
+        }
     }
         
 
@@ -123,10 +153,12 @@ void spi_read_loop(BLEMeshDriver& driver)
 
 extern "C" void app_main(void)
 {
+    // ESP_LOGI(TAG, "FLASHED");
     // Choose spi host
-    BLEMeshDriver driver;
+    std::string name = "Shuwen's IPhone";
+    BLEMeshDriver driver(name);
 
-    esp_err_t ret = driver.start_advertising();
+    esp_err_t ret = driver.start_advertising(true);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to start BLE advertising");
         return;

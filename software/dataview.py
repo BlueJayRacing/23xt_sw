@@ -1,217 +1,124 @@
 """
-Real-time viewer for ChannelSampleBatch UDP packets.
+Real-time viewer for digital channel samples.
 
-Rewritten from realtime_dataview_mag.py.
+Feed data through add_samples() 
 """
 
-import socket
-import sys
-import threading
-import time
 from collections import deque
 
+import argparse
+import csv
 import matplotlib.pyplot as plt
+import math
+import os
+import time
 from matplotlib.animation import FuncAnimation
 
-sys.path.insert(0, "generated")
-import channel_sample_pb2 as cs
-
 # configs
-UDP_PORT = 8888         
-MAX_PACKET_SIZE = 2048  
 PLOT_WINDOW = 1000
-STATS_INTERVAL = 1.0
-PLOT_UPDATE_INTERVAL = 100   
-SOCKET_TIMEOUT = 0.25
-SILENCE_TIMEOUT = 5.0
-
-VOLTAGE_MAX = 5.0       
-UINT24_MAX = 0xFFFFFF   
+PLOT_UPDATE_INTERVAL = 100
+COUNT_TO_RPM = 60 / 33 
+RPM_WINDOW_S = 5 # in seconds
+RPM_TO_MPH = math.pi * 23 * 60 / 63360
 
 CHANNEL_NAMES = {
-    0: "AIN0 - Ground reference",
-    1: "AIN1 - 5V reference",
-    2: "AIN2 - 2.5V reference",
-    3: "AIN3 - 2.5V reference (buffered)",
-    4: "AIN4 - Strain gauge 2",
-    5: "AIN5 - Strain gauge 1",
-    6: "AIN6 - Channel 1",
-    7: "AIN7 - Channel 6",
-    8: "AIN8 - Channel 2",
-    9: "AIN9 - Channel 7",
-    10: "AIN10 - Channel 3",
-    11: "AIN11 - Channel 8",
-    12: "AIN12 - Channel 4",
-    13: "AIN13 - Channel 9",
-    14: "AIN14 - Channel 5",
-    15: "AIN15 - Channel 10",
     16: "DIN0 - Digital Input 0",
     17: "DIN1 - Digital Input 1",
-    18: "DIN2 - Digital Input 2",
-    19: "DIN3 - Digital Input 3",
-    20: "DIN4 - Digital Input 4",
-    21: "DIN5 - Digital Input 5",
-    22: "MISC0 - System temperature",
-    23: "MISC1 - Power supply",
-    24: "MISC2 - CPU load",
-    25: "MISC3 - Memory usage",
-    26: "MISC4",
-    27: "MISC5",
-    28: "MISC6",
-    29: "MISC7",
+    # 18: "DIN2 - Digital Input 2",
+    # 19: "DIN3 - Digital Input 3",
+    # 20: "DIN4 - Digital Input 4",
+    # 21: "DIN5 - Digital Input 5",
 }
-
-ANALOG_CHANNELS = [6, 8, 10, 12, 14, 7, 9, 11, 13, 15]  
-DIGITAL_CHANNELS = [16, 17, 18, 19, 20, 21]            
-
-
-def convert_to_voltage(value):
-    """Convert a uint24 reading to volts on a 0-5V scale."""
-    return (float(value) / UINT24_MAX) * VOLTAGE_MAX
-
 
 channel_data = {
     ch: {"timestamps": deque(maxlen=PLOT_WINDOW),
          "values": deque(maxlen=PLOT_WINDOW)}
-    for ch in ANALOG_CHANNELS + DIGITAL_CHANNELS
+    for ch in CHANNEL_NAMES
 }
 
-# timestamp of first sample
 origin = {"timestamp": None}
+origin_data = {}
 
-stats = {"packets": 0, "samples": 0, "bytes": 0}
+# newest timestamp seen per channel
+last_ts = {}
 
-rate_history = deque(maxlen=300)
-last_report = {"packets": 0, "samples": 0, "bytes": 0}
+DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+csv_writers = {}
 
-def process_batch(data):
-    """Decode one message and file its samples by channel."""
-    batch = cs.ChannelSampleBatch()
-    batch.ParseFromString(data)
+def open_csvs():
+    """Create csv files."""
+    os.makedirs(DATA_DIR, exist_ok=True)
+    run_name = time.strftime("%Y-%m-%d_%H-%M-%S")
+    for ch in CHANNEL_NAMES:
+        f = open(os.path.join(DATA_DIR, f"{run_name}_ch{ch}.csv"), "w", newline="", buffering=1)
+        csv_writers[ch] = csv.writer(f)
+        csv_writers[ch].writerow(["timestamp_us", "value"])
 
-    if origin["timestamp"] is None and batch.samples:
-        origin["timestamp"] = batch.samples[0].timestamp
-
-    for s in batch.samples:
-        ch = s.internal_channel_id
+def add_samples(samples):
+    """File samples by channel. Samples should have channel, timestamp, and value."""
+    for s in samples:
+        ch = s.channel
         if ch not in channel_data:
-            continue 
-        value = convert_to_voltage(s.value) if ch in ANALOG_CHANNELS else s.value
+            continue
+
+        # drop repeats, out-of-order samples, and the zeroed trailing slot
+        if s.timestamp <= last_ts.get(ch, 0):
+            continue
+        last_ts[ch] = s.timestamp
+
+        if origin["timestamp"] is None:
+            origin["timestamp"] = s.timestamp
+
+        if ch not in origin_data and origin["timestamp"] is not None:
+            origin_data[ch] = s.value
+
         channel_data[ch]["timestamps"].append(s.timestamp)
-        channel_data[ch]["values"].append(value)
+        channel_data[ch]["values"].append(s.value)
 
-    stats["packets"] += 1
-    stats["samples"] += len(batch.samples)
-    stats["bytes"] += len(data)
-
-
-def report_stats(elapsed, interval):
-    """Data flow rates over the last interval"""
-    d_packets = stats["packets"] - last_report["packets"]
-    d_samples = stats["samples"] - last_report["samples"]
-    d_bytes = stats["bytes"] - last_report["bytes"]
-
-    print(f"{elapsed:6.1f}s | "
-          f"{d_packets / interval:6.1f} pkt/s | "
-          f"{d_samples / interval:7.0f} samples/s | "
-          f"{d_bytes / interval / 1024:6.1f} KiB/s | "
-          f"{stats['packets']} packets total")
-
-    rate_history.append((elapsed,
-                         d_packets / interval,
-                         d_samples / interval,
-                         d_bytes / interval / 1024))
-
-    last_report.update(stats)
+        if ch in csv_writers:
+            csv_writers[ch].writerow([s.timestamp, s.value])
 
 
-def receive_loop(port=UDP_PORT):
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.bind(("", port))
-    sock.settimeout(SOCKET_TIMEOUT)
-    print(f"listening on port {port}")
+def setup_plot():
+    fig, ax = plt.subplots(figsize=(12, 6))
 
-    start = time.time()
-    last_time = start
-    next_report = start + STATS_INTERVAL
+    ax.set_title("Digital channels")
+    ax.set_ylabel("Count")
+    ax.set_xlabel("Seconds since first sample")
+    ax.grid(True, alpha=0.3)
 
-    last_packet = None
-    port_silence = False
-
-    while True:
-        try:
-            data, addr = sock.recvfrom(MAX_PACKET_SIZE)
-        except socket.timeout:
-            gap = time.time() - (last_packet or start)
-            if gap > SILENCE_TIMEOUT and not port_silence:
-                print(f"No packets received for {gap:.1f} seconds")
-                port_silence = True
-            pass
-        else: 
-            if port_silence:
-                port_silence = False
-                print(f"Packets resumed after {time.time() - last_packet:.1f} seconds")
-            last_packet = time.time()
-            try:
-                process_batch(data)
-            except Exception as e:
-                print(f"Error processing batch from {addr}: {e}")
-
-        now = time.time()
-        if now >= next_report:
-            report_stats(now - start, now - last_time)
-            last_time = now
-            next_report = now + STATS_INTERVAL
-
-
-def setup_plots():
-    """Three stacked panels, matching the original layout."""
-    fig, (ax_analog, ax_digital, ax_speed) = plt.subplots(
-        3, 1, figsize=(12, 10), gridspec_kw={"height_ratios": [2, 2, 1]})
-
-    ax_analog.set_title("Analog channels")
-    ax_analog.set_ylabel("Volts")
-    ax_analog.set_ylim(0, VOLTAGE_MAX)
-    ax_analog.grid(True, alpha=0.3)
-
-    ax_digital.set_title("Digital channels (cumulative)")
-    ax_digital.set_ylabel("Count")
-    ax_digital.set_xlabel("Seconds since first sample")
-    ax_digital.grid(True, alpha=0.3)
-
-    # Only these two share an x-axis
-    ax_digital.sharex(ax_analog)
-
-    ax_speed.set_title("Data speed")
-    ax_speed.set_xlabel("Seconds since listening started")
-    ax_speed.set_ylabel("Rate")
-    ax_speed.grid(True, alpha=0.3)
-
-    # One Line2D per channel
     lines = {}
-    for ch in ANALOG_CHANNELS:
-        lines[ch], = ax_analog.plot([], [], lw=1.2, label=CHANNEL_NAMES[ch])
-    for ch in DIGITAL_CHANNELS:
-        lines[ch], = ax_digital.plot([], [], lw=1.2, label=CHANNEL_NAMES[ch])
-
-    speed_lines = {
-        "packets": ax_speed.plot([], [], lw=2, label="Packets/sec")[0],
-        "samples": ax_speed.plot([], [], lw=2, label="Samples/sec")[0],
-        "bytes": ax_speed.plot([], [], lw=2, label="KiB/sec")[0],
-    }
-
-    ax_analog.legend(loc="upper left", fontsize=7, ncol=2)
-    ax_digital.legend(loc="upper left", fontsize=7, ncol=2)
-    ax_speed.legend(loc="upper right", fontsize=8)
+    for ch in CHANNEL_NAMES:
+        lines[ch], = ax.plot([], [], lw=1.2)
+        lines[ch].set_label(f"Channel {ch}: No data received")
     fig.tight_layout()
 
-    return fig, (ax_analog, ax_digital, ax_speed), lines, speed_lines
+    ax.legend(loc="upper left")
+
+    return fig, ax, lines
+
+def setup_speed_plot(unit):
+    """Set up plot for both mph and rpm."""
+    fig, ax = plt.subplots(figsize=(12, 6))
+
+    ax.set_title(f"{unit} Plot")
+    ax.set_ylabel(unit)
+    ax.set_xlabel("Seconds since first sample")
+    ax.grid(True, alpha=0.3)
+
+    lines = {}
+    for ch in {17}:
+        lines[ch], = ax.plot([], [], lw=1.2, label=CHANNEL_NAMES[ch])
+        lines[ch].set_label(f"{unit}: No data received")
+    fig.tight_layout()
+
+    ax.legend(loc="upper left")
+
+    return fig, ax, lines
 
 
-def update_plot(frame, axes, lines, speed_lines):
-    """Redraw everything from the data that the receiver fills"""
-    ax_analog, ax_digital, ax_speed = axes
-
+def update_plot(frame, ax, lines, running_total):
+    """Redraw plot."""
     t0 = origin["timestamp"]
     if t0 is None:
         return []  # nothing received yet
@@ -220,40 +127,136 @@ def update_plot(frame, axes, lines, speed_lines):
         timestamps = list(channel_data[ch]["timestamps"])
         values = list(channel_data[ch]["values"])
 
+        counts = [x - origin_data[ch] for x in values]
+        if running_total:
+            counts = values
+
+        if (len(counts)) > 0:
+            cur_y = counts[-1]
+            if running_total:
+                line.set_label(f"Channel {ch} total: {cur_y}")
+            else:
+                line.set_label(f"Channel {ch}: {cur_y}")
         # matplotlib rejects mismatched lengths.
         n = min(len(timestamps), len(values))
         if n == 0:
             continue
 
         # seconds since the first sample
-        line.set_data([(t - t0) / 1e6 for t in timestamps[:n]], values[:n])
+        line.set_data([(t - t0) / 1e6 for t in timestamps[:n]], counts)
+    ax.legend(loc="upper left")
+    ax.relim()
+    ax.autoscale_view()
 
-    if rate_history:
-        history = list(rate_history)
-        elapsed = [row[0] for row in history]
-        speed_lines["packets"].set_data(elapsed, [row[1] for row in history])
-        speed_lines["samples"].set_data(elapsed, [row[2] for row in history])
-        speed_lines["bytes"].set_data(elapsed, [row[3] for row in history])
-        ax_speed.relim()
-        ax_speed.autoscale_view()
+    return list(lines.values())
 
-    ax_analog.relim()
-    ax_analog.autoscale_view(scaley=False)
-    ax_digital.relim()
-    ax_digital.autoscale_view()
+def compute_rpm(timestamps, values):
+    """Computer RPM for each sample."""
+    window_us = RPM_WINDOW_S * 1e6
 
-    return list(lines.values()) + list(speed_lines.values())
+    rpm_times = []
+    rpms = []
+
+    j = 0
+    for i in range(len(timestamps)):
+        # calculates derivative over a window of time
+        while timestamps[i] - timestamps[j] > window_us:
+            j += 1
+
+        if i == j:
+            continue
+
+        delta_counts = values[i] - values[j]
+        delta_us = timestamps[i] - timestamps[j]
+
+        counts_per_sec = delta_counts / (delta_us / 1e6)
+
+        rpm_times.append(timestamps[i])
+        rpms.append(counts_per_sec * COUNT_TO_RPM)
+
+    return rpm_times, rpms
 
 
-if __name__ == "__main__":
-    # receiving loop runs in background thread
-    threading.Thread(target=receive_loop, daemon=True).start()
+def update_rpm_plot(frame, ax, lines):
+    """Redraw rpm plot."""
+    t0 = origin["timestamp"]
+    if t0 is None:
+        return []  # nothing received yet
 
-    fig, axes, lines, speed_lines = setup_plots()
+    for ch, line in lines.items():
+        timestamps = list(channel_data[ch]["timestamps"])
+        values = list(channel_data[ch]["values"])
 
+        rpm_times, rpms = compute_rpm(timestamps, values)
+        if len(rpms) == 0:
+            continue
+
+        line.set_label(f"RPM: {rpms[-1]:.0f}")
+
+        # seconds since the first sample
+        line.set_data([(t - t0) / 1e6 for t in rpm_times], rpms)
+
+    ax.legend(loc="upper left")
+    ax.relim()
+    ax.autoscale_view()
+
+    return list(lines.values())
+
+def update_mph_plot(frame, ax, lines):
+    """Redraw mph plot."""
+    t0 = origin["timestamp"]
+    if t0 is None:
+        return []  # nothing received yet
+
+    for ch, line in lines.items():
+        timestamps = list(channel_data[ch]["timestamps"])
+        values = list(channel_data[ch]["values"])
+
+        rpm_times, rpms = compute_rpm(timestamps, values)
+        if len(rpms) == 0:
+            continue
+
+        mph = [x * RPM_TO_MPH for x in rpms]
+        line.set_label(f"MPH: {mph[-1]:.2f}")
+
+        # seconds since the first sample
+        line.set_data([(t - t0) / 1e6 for t in rpm_times], mph)
+
+    ax.legend(loc="upper left")
+    ax.relim()
+    ax.autoscale_view()
+
+    return list(lines.values())
+
+
+
+def start():
+    """Open the window for plot."""
+    parser = argparse.ArgumentParser()
+    # Run with python dataview.py --no-running-total to see counts per sample
+    parser.add_argument("--running_total", action = argparse.BooleanOptionalAction, default = True)
+    # Run with --no-save_csv to skip writing csvs to software/data/
+    parser.add_argument("--save_csv", action = argparse.BooleanOptionalAction, default = True)
+    args = parser.parse_args()
+
+    if args.save_csv:
+        open_csvs()
+
+    fig, ax, lines = setup_plot()
     ani = FuncAnimation(fig, update_plot,
-                        fargs=(axes, lines, speed_lines),
+                        fargs=(ax, lines, args.running_total),
                         interval=PLOT_UPDATE_INTERVAL,
                         blit=False, cache_frame_data=False)
 
+    fig2, ax2, lines2 = setup_speed_plot("RPM")
+    ani2 = FuncAnimation(fig2, update_rpm_plot,
+                        fargs=(ax2, lines2),
+                        interval=PLOT_UPDATE_INTERVAL,
+                        blit=False, cache_frame_data=False)
+
+    fig3, ax3, lines3 = setup_speed_plot("MPH")
+    ani3 = FuncAnimation(fig3, update_mph_plot,
+                        fargs=(ax3, lines3),
+                        interval=PLOT_UPDATE_INTERVAL,
+                        blit=False, cache_frame_data=False)
     plt.show()
