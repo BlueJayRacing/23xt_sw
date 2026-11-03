@@ -35,7 +35,7 @@
 #define TMAG5170_X_THRX_CONFIG_RESET   0x7D83U
 
 // DEVICE_CONFIG fields (Table 7-6)
-#define TMAG5170_CONV_AVG(n)           (((uint16_t)(n) & 0x7U) << 12) // 0 = 1x ... 3 = 8x (1.6 ksps 3-axis) ... 5 = 32x
+#define TMAG5170_CONV_AVG(n)           (((uint16_t)(n) & 0x7U) << 12) // 0 = 1x ... 3 = 8x (1.6 ksps per axis, so ~1.9 ms per X/Y/Z set) ... 5 = 32x
 #define TMAG5170_OPERATING_MODE(n)     (((uint16_t)(n) & 0x7U) << 4)
 #define TMAG5170_MODE_CONFIG           0U
 #define TMAG5170_MODE_STANDBY          1U

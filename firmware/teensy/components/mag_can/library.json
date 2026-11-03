@@ -1,0 +1,11 @@
+{
+    "name": "mag_can",
+    "version": "1.0.0",
+    "description": "Receives and decodes magnetometer board CAN frames (spec: firmware/can/can_spec.md)",
+    "license": "MIT",
+    "build": {
+      "flags": ["-Wall", "-Wextra"]
+    },
+    "frameworks": "*",
+    "platforms": "*"
+  }

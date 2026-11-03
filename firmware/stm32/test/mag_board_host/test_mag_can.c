@@ -63,7 +63,17 @@ static void test_clamp(void)
 
 static void test_ids(void)
 {
-    CHECK(MAG_CAN_ID_FIELD == 0x120U && MAG_CAN_ID_STATUS == 0x121U, "IDs changed; update can_spec.md and the DBC");
+    static const uint32_t field[MAG_CAN_NODE_COUNT] = {0x120U, 0x121U, 0x122U, 0x123U};
+    static const uint32_t status[MAG_CAN_NODE_COUNT] = {0x128U, 0x129U, 0x12AU, 0x12BU};
+    for (uint32_t node = 0; node < MAG_CAN_NODE_COUNT; node++)
+    {
+        CHECK(mag_can_node_valid(node), "nodes 0..3 valid");
+        CHECK(mag_can_field_id(node) == field[node] && mag_can_status_id(node) == status[node],
+              "IDs changed; update can_spec.md and the DBC");
+    }
+    // 0xFF = option byte never programmed
+    CHECK(!mag_can_node_valid(MAG_CAN_NODE_COUNT) && !mag_can_node_valid(0xFFU), "node out of range rejected");
+    CHECK(mag_can_status_id(0xFFU) == 0x12FU, "unprogrammed node reports on 0x12F");
 }
 
 int main(void)

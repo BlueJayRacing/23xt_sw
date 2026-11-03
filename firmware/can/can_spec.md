@@ -26,7 +26,26 @@ Claim a range here before adding a new board.
 
 Source: [firmware/stm32/prod/mag_board](../stm32/prod/mag_board). Sensor: TMAG5170A2, ±150 mT range.
 
-### `0x120` MAG_FIELD: 100 Hz, 8 bytes
+Up to 4 boards share the bus, all running the same firmware. Each board's node number (0–3) is stored in the STM32 option byte `Data0` and picks its IDs:
+
+| Node | MAG_FIELD | MAG_STATUS |
+|---|---|---|
+| 0 | `0x120` | `0x128` |
+| 1 | `0x121` | `0x129` |
+| 2 | `0x122` | `0x12A` |
+| 3 | `0x123` | `0x12B` |
+
+Set it once per board, in bootloader mode (hold BOOT, tap RESET, release BOOT):
+
+```
+STM32_Programmer_CLI -c port=usb1 -ob Data0=<node>
+```
+
+It survives reflashing. A board whose `Data0` is not 0–3 (a new chip reads `0xFF`) sends no MAG_FIELD, and sends MAG_STATUS on `0x12F` with `StartupFailMask` bit 15 (`NODE_ID`) set, so it never collides with a configured board.
+
+The app retransmits frames that lose arbitration and recovers from bus-off on its own.
+
+### `0x120`–`0x123` MAG_FIELD: 100 Hz, 8 bytes
 
 Average of 10 X/Y/Z samples taken at 1 kHz.
 
@@ -51,7 +70,7 @@ Average of 10 X/Y/Z samples taken at 1 kHz.
 
 **Use the field values only when bits 0–2 are clear.**
 
-### `0x121` MAG_STATUS: 1 Hz, 8 bytes
+### `0x128`–`0x12B` MAG_STATUS: 1 Hz, 8 bytes (`0x12F` if no node number)
 
 | Byte | Signal | Type | Meaning |
 |---|---|---|---|
@@ -77,5 +96,8 @@ Test ids and result codes: [hw_results.h](../stm32/prod/mag_board/include/hw_res
 
 | Message | Rate | Load at 125 kbit/s |
 |---|---|---|
-| MAG_FIELD | 100 Hz | ~11% (8-byte frame ≈ 135 bits worst case with stuffing) |
-| MAG_STATUS | 1 Hz | ~0.1% |
+| MAG_FIELD | 100 Hz per board | ~11% per board (8-byte frame ≈ 135 bits worst case with stuffing) |
+| MAG_STATUS | 1 Hz per board | ~0.1% per board |
+| **4 boards** | | **~44%** |
+
+44% leaves little headroom for other boards at 125 kbit/s. Before adding more traffic, raise the bitrate or lower the MAG_FIELD rate.
