@@ -1,12 +1,15 @@
 #include <ble_mesh_driver.hpp>
 #include <vector>
 #include <cstring>
+#include <algorithm>
 
 #ifndef ESP_BLE_GAP_ADV_ITVL_MS
 #define ESP_BLE_GAP_ADV_ITVL_MS(t) ((uint16_t)((t) * 1000 / 625))
 #endif
 
 static const char * TAG = "ble_mesh_driver";
+static const size_t MAX_AD_CHUNK = 251;
+static const uint32_t MAX_PLD_SIZE = 1650;
 
 uint32_t buf_to_uint32(uint8_t * buf) {
     uint32_t num = 0;
@@ -180,47 +183,28 @@ esp_err_t BLEMeshDriver::set_adv_payload(std::vector<uint8_t> pld) {
         // static_cast<uint8_t>(pld.size() + 3), ESP_BLE_AD_MANUFACTURER_SPECIFIC_TYPE, MANUFACTURER_ID_LS, MANUFACTURER_ID_MS
     };
 
-    // ESP_LOGI(TAG, "name size %d %s", board_name.size() + 2, board_name.c_str());
-
     raw_adv_data.insert(raw_adv_data.end(), board_name.begin(), board_name.end());
     raw_adv_data.push_back(0);
 
-    // for(size_t i = 0; i < board_name.size(); i++) {
-    //     raw_adv_data.push_back(board_name.at(i));
-    // }
+    size_t i = 0;
+    while (i < pld.size()) {
+        size_t chunk_len = std::min(MAX_AD_CHUNK, pld.size() - i);
+        // Insert header bytes
+        uint8_t header[] = {static_cast<uint8_t>(chunk_len + 3), 
+            ESP_BLE_AD_MANUFACTURER_SPECIFIC_TYPE, MANUFACTURER_ID_LS, MANUFACTURER_ID_MS};
+        raw_adv_data.insert(raw_adv_data.end(), header, header + 4);
+
+        raw_adv_data.insert(raw_adv_data.end(), pld.begin() + i, pld.begin() + i + chunk_len);
+        i += chunk_len;
+    }
     
-    // Get amount to increment the iterator by on each loop
-    // uint8_t * it = pld.data();
-    // uint8_t * end = it + pld.size();
-    uint8_t manufacturer_boilerplate[] = {static_cast<uint8_t>(pld.size()+3),
-      ESP_BLE_AD_MANUFACTURER_SPECIFIC_TYPE, MANUFACTURER_ID_LS, MANUFACTURER_ID_MS};
-
-    // for(int i = 0; i < pld.size(); i += MAX_SIZE) {
-    //   // Insert boilerplate
-    //   if(i + MAX_SIZE <= pld.size()) {
-    //     raw_adv_data.insert(raw_adv_data.end(), manufacturer_boilerplate, manufacturer_boilerplate + 4);
-    //     raw_adv_data.insert(raw_adv_data.end(), it, it + MAX_SIZE);
-    //     it += MAX_SIZE;
-    //   }
-    //   else break;
-    // }
-
-    // int leftover = end - it;
-    // ESP_LOGI(TAG, "LEFTOVER : %d", leftover);
-    // if(leftover > 0) {
-    //   uint8_t leftover_boilerplate[] = {static_cast<uint8_t>(leftover+3),
-    //     ESP_BLE_AD_MANUFACTURER_SPECIFIC_TYPE, MANUFACTURER_ID_LS, MANUFACTURER_ID_MS};
-    //   raw_adv_data.insert(raw_adv_data.end(), leftover_boilerplate, leftover_boilerplate + 4);
-    //   raw_adv_data.insert(raw_adv_data.end(), it, end);
-    // }
-
-    // pld.resize(10);
-
-    raw_adv_data.insert(raw_adv_data.end(), manufacturer_boilerplate, manufacturer_boilerplate + 4);
-
-    raw_adv_data.insert(raw_adv_data.end(), pld.begin(), pld.end());
 
     ESP_LOGI(TAG, "packet setting of len %d", raw_adv_data.size());
+
+    if (raw_adv_data.size() > MAX_PLD_SIZE) {
+        ESP_LOGE(TAG, "Packet of len %d exceeded max size", raw_adv_data.size());
+        return ESP_ERR_INVALID_SIZE;
+    }
 
     esp_err_t ret = esp_ble_gap_config_ext_adv_data_raw(0, raw_adv_data.size(), raw_adv_data.data());
     return ret;
