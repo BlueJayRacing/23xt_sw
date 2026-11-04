@@ -1,0 +1,7 @@
+# local test feed, not part of the viewer
+fake_feed.py
+
+# run csvs written by dataview
+data/
+
+__pycache__/
