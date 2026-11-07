@@ -47,7 +47,10 @@ class BLEMeshDriver {
         esp_err_t stop_advertising();
 
     private:
-        std::vector<uint8_t> final_payload;
+        std::vector<uint8_t> collected_bytes;
+        esp_bd_addr_t collected_board_addr;
+        uint8_t collected_setID;
+
         bool packet_processing;
 
         esp_ble_adv_params_t adv_params;

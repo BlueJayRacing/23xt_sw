@@ -80,6 +80,9 @@ static void scan_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param)
 BLEMeshDriver::BLEMeshDriver(std::string name) : board_name(name) {
     instance = this;
     packet_num = 0;
+    collected_bytes.reserve(MAX_PLD_SIZE);
+    collected_setID = 0;
+    memset(collected_board_addr, 0, sizeof(collected_board_addr));
     packet_processing = false;
 }
 
@@ -110,18 +113,63 @@ bool BLEMeshDriver::construct_payload(uint8_t * recv_payload, size_t len, std::v
 }
 
 esp_err_t BLEMeshDriver::handle_scan_response(esp_ble_gap_ext_adv_report_t report) {
+    // Making sure it's the same message
+    if (!collected_bytes.empty() && 
+        (memcmp(report.addr, collected_board_addr, sizeof(esp_bd_addr_t)) != 0 || report.sid != collected_setID)) {
+        collected_bytes.clear();
+    }
+    // Start new message buffer
+    if (collected_bytes.empty()) {
+        memcpy(collected_board_addr, report.addr, sizeof(esp_bd_addr_t));
+        collected_setID = report.sid;
+    }
+    // Clears message if lost packets
+    if (report.data_status == ESP_BLE_GAP_EXT_ADV_DATA_TRUNCATED) {
+        collected_bytes.clear();
+        return ESP_OK;
+    }
+
+    if (collected_bytes.size() > MAX_PLD_SIZE) {
+        collected_bytes.clear(); 
+        return ESP_OK;  // shouldn't be possible???
+    }
+
+    // Combines received packets
+    collected_bytes.insert(collected_bytes.end(), report.adv_data, report.adv_data + report.adv_data_len);
+    if (report.data_status == ESP_BLE_GAP_EXT_ADV_DATA_INCOMPLETE) {
+        return ESP_OK;
+    }
+
     // ESP_ERROR_CHECK(esp_ble_gap_stop_ext_scan());
     // ESP_ERROR_CHECK(stop_advertising());
     uint8_t len_man_data = 0;
-    uint8_t * man_data = esp_ble_resolve_adv_data_by_type(report.adv_data, report.adv_data_len, ESP_BLE_AD_MANUFACTURER_SPECIFIC_TYPE, &len_man_data);
-    // ESP_LOGI(TAG, "HANDLING SCAN RESP");
-    // if (len_man_data > 2) {
-    //     ESP_LOGI(TAG, "MANU DATA FIRST BYTES %d %d", man_data[0], man_data[1]);
-    // }
-    if (len_man_data > 2 && man_data[0] == MANUFACTURER_ID_LS && man_data[1] == MANUFACTURER_ID_MS) {
+    std::vector<uint8_t> joined;
+    size_t pos = 0;
+    while (pos < collected_bytes.size()) {
+        len_man_data = collected_bytes[pos];
+        if (len_man_data == 0) {
+            break;
+        }
+
+        if (pos + 1 + len_man_data > collected_bytes.size()) {
+            break;
+        }
+        
+        uint8_t type = collected_bytes[pos + 1];
+
+        if (type == ESP_BLE_AD_MANUFACTURER_SPECIFIC_TYPE && len_man_data >= 3) {
+            if (collected_bytes[pos + 2] == MANUFACTURER_ID_LS &&
+                collected_bytes[pos + 3] == MANUFACTURER_ID_MS){
+                    joined.insert(joined.end(), collected_bytes.data() + pos + 4, collected_bytes.data() + pos + 1 + len_man_data);
+                }
+        }
+        pos += 1 + len_man_data;
+    }
+    
+    if (!joined.empty()) {
         uint8_t len = 0;
-        char * name = (char *) esp_ble_resolve_adv_data_by_type(report.adv_data, report.adv_data_len, ESP_BLE_AD_TYPE_NAME_CMPL, &len);
-        ESP_LOGI(TAG, "Device Found %d %d %d", len, len_man_data, report.adv_data_len);
+        char * name = (char *) esp_ble_resolve_adv_data_by_type(collected_bytes.data(), collected_bytes.size(), ESP_BLE_AD_TYPE_NAME_CMPL, &len);
+        ESP_LOGI(TAG, "Device Found %d %u %u", len, joined.size(), collected_bytes.size());
         if (len != 0) ESP_LOGI(TAG, "Name: %s", name);
         ESP_LOGI(TAG, "Address: %02x:%02x:%02x:%02x:%02x:%02x",
                 report.addr[0], report.addr[1], report.addr[2],
@@ -130,17 +178,18 @@ esp_err_t BLEMeshDriver::handle_scan_response(esp_ble_gap_ext_adv_report_t repor
         ESP_LOGI(TAG, "Event Type / Properties: 0x%x", report.event_type);
         ESP_LOGI(TAG, "RSSI: %d dBm", report.rssi);
 
-        if (len_man_data >= 6) {
+        if (joined.size() >= 4) {
             std::vector<uint8_t> payload;
 
             // vTaskDelay(10);
 
-            if (construct_payload(man_data + 2, len_man_data - 2, payload)) {
+            if (construct_payload(joined.data(), joined.size(), payload)) {
                 // payload.resize(10);
                 // std::vector<uint8_t> testpld = {1, 2, 3, 4, 5, 6, 7};
                 esp_err_t ret = set_adv_payload(payload);
                 if (ret != ESP_OK) {
                     ESP_LOGE(TAG, "Failed to set payload");
+                    collected_bytes.clear();
                     return ret;
                 }
             }
@@ -159,6 +208,7 @@ esp_err_t BLEMeshDriver::handle_scan_response(esp_ble_gap_ext_adv_report_t repor
             esp_err_t ret = esp_ble_gap_ext_adv_start(1, &ext_params);
             if (ret != ESP_OK) {
                 ESP_LOGE(TAG, "Failed to start advertising");
+                collected_bytes.clear();
                 return ret;
             }
 
@@ -168,6 +218,7 @@ esp_err_t BLEMeshDriver::handle_scan_response(esp_ble_gap_ext_adv_report_t repor
         // ESP_ERROR_CHECK(esp_ble_gap_start_ext_scan(0x0, 0x0));
     }
     
+    collected_bytes.clear();
     return ESP_OK;
 }
 
