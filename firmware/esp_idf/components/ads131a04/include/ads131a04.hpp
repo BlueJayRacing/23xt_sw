@@ -10,7 +10,7 @@
 
 #include <string.h>
 
-#define ADS131A04_SPI_MASTER_DUMMY 0xFF
+#define ADS131A04_SPI_MASTER_DUMMY 0x0 // 0xFF
 
 // Commands for the ADC
 // System commands
@@ -60,8 +60,9 @@
 
 // D_SYS_CFG
 #define ADS131A04_REG_MASK_WDT_EN    0x80
-#define ADS131A04_REG_MASK_CRC_MODE  0x30
-#define ADS131A04_REG_MASK_DNDLY     0x0C
+#define ADS131A04_REG_MASK_CRC_MODE  0x40
+#define ADS131A04_REG_MASK_DNDLY     0x30
+#define ADS131A04_REG_MASK_HIZDLY    0x0C
 #define ADS131A04_REG_MASK_FIXED     0x02
 #define ADS131A04_REG_MASK_CRC_EN    0x01
 
@@ -77,8 +78,14 @@
 #define ADS131A04_REG_MASK_ENA       0x0F
 
 // ADCx 
-#define ADS131A04_REG_MASK_GAINx_    0x06
+#define ADS131A04_REG_MASK_GAINx    0x06
 
+
+typedef struct ads131a04_init_param {
+    gpio_num_t cs_pin;
+    gpio_num_t drdy_pin;
+    spi_host_device_t spi_host;
+} ads131a04_init_param_t;
 
 // A_SYS_CFG
 typedef enum ads131a4_vref_4v {
@@ -186,46 +193,52 @@ typedef enum ads131a04_adc_gain {
 typedef struct ads131a04_regs {
     bool vncp_enable;
     bool internal_ref_enable;
-    bool low_power_mode_disable;
+    bool hrm_enable;
+    bool wdt_enable;
     bool crc_enable;
     ads131a4_vref_4v_t volt_ref;
     ads131a04_comp_th_t comparator_thresh;
     ads131a04_crc_mode_t crc_mode;
     ads131a04_dndly_t done_delay;
-    ads131a04_hizdly_t high_z_delayl;
+    ads131a04_hizdly_t hi_z_delay;
     ads131a04_fixed_t word_size;
     ads131a04_clksrc_t clk_source;
     ads131a04_clk_div_t clkin_divider_ratio;
     ads131a04_iclk_div_t iclk_divider_ratio;
     ads131a04_osr_t oversampling_ratio;
     ads131a04_adc_en_t adc_enable;
-    ads131a04_adc_gain_t gain;
+    ads131a04_adc_gain_t gain_1;
+    ads131a04_adc_gain_t gain_2;
+    ads131a04_adc_gain_t gain_3;
+    ads131a04_adc_gain_t gain_4;
 } ads131a04_regs_t;
 
 class ADS131A04 {
   public:
     ADS131A04();
-    esp_err_t init(ads1120_init_param_t t_init_param);
-    esp_err_t configure(ads1120_regs_t t_new_regs);
-    void getRegs(ads1120_regs_t* regs);
+    esp_err_t init(ads131a04_init_param_t t_init_param);
+    esp_err_t configure(ads131a04_regs_t t_new_regs);
+    void getRegs(ads131a04_regs_t* regs);
+    bool isAdcReady(void);
     bool isDataReady(void) const;
     esp_err_t readADC(int16_t* t_data);
     esp_err_t reset(void);
-    esp_err_t startSync(void);
-    esp_err_t powerDown(void);
-    esp_err_t rdata(void);
+    esp_err_t unlock(void);
+    esp_err_t wakeup(void);
+    esp_err_t lock(void);
+    // esp_err_t rdata(void);
 
   private:
     esp_err_t readRegister(uint8_t t_address, uint8_t* t_data) const;
     esp_err_t writeRegister(uint8_t t_address, uint8_t t_value);
     esp_err_t writeRegisterMasked(uint8_t t_value, uint8_t t_mask, uint8_t t_address);
-    esp_err_t sendCommand(uint8_t t_command);
-    esp_err_t setDataRate(uint8_t t_value);
+    esp_err_t sendCommand(uint16_t t_command);
+    // esp_err_t setDataRate(uint8_t t_value);
 
   private:
     gpio_num_t drdy_pin_;
     spi_device_handle_t spi_dev_;
-    ads1120_regs_t regs_;
+    ads131a04_regs_t regs_;
 };
 
 #endif
