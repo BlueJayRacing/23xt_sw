@@ -250,7 +250,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
         #define _UTIMEBUF struct _utimbuf
     #else // POSIX
         #include <unistd.h>
-        #include <dirent.h>
+        // #include <dirent.h>
         #include <errno.h>
         #include <utime.h>
         #include <sys/stat.h>

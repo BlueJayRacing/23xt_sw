@@ -20,8 +20,8 @@ extern "C" {
 #include <string.h>
 #include <time.h>
 
-#include "ISConstants.h"
-#include "types.h"
+#include "InertialSenseSDK/ISConstants.h"
+#include "InertialSenseSDK/core/types.h"
 
 
 // --- Compile-time configuration ---

@@ -26,7 +26,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include <stdlib.h>
 #include <inttypes.h>
 #include <stdio.h>
-#include "data_sets.h"
+#include "InertialSenseSDK/data_sets.h"
 
 // C++ API
 #ifdef __cplusplus

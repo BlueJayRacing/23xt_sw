@@ -14,9 +14,9 @@
 
 #include <string.h>
 
-#include "core/types.h"
-#include "core/msg_logger.h"
-#include "ISConstants.h"
+#include "InertialSenseSDK/core/types.h"
+#include "InertialSenseSDK/core/msg_logger.h"
+#include "InertialSenseSDK/ISConstants.h"
 
 /**
  * Port definitions used across the entire product line & SDK.

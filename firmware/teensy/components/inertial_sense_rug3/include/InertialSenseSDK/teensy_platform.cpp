@@ -2,7 +2,7 @@
 // The SDK normally gets these from ISUtilities.cpp, which pulls in desktop-only code.
 
 #include <Arduino.h>
-#include "ISUtilities.h"
+#include "InertialSenseSDK/ISUtilities.h"
 
 unsigned int current_timeMs()
 {

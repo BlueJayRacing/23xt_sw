@@ -1,4 +1,4 @@
-#include "msg_logger.h"
+#include "InertialSenseSDK/core/msg_logger.h"
 #include <stdlib.h>
 
 #if defined(PLATFORM_IS_WINDOWS)

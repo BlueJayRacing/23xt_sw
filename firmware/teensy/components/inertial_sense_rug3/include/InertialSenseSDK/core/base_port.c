@@ -6,11 +6,11 @@
  * @copyright Copyright (c) 2025 Inertial Sense, Inc. All rights reserved.
  */
 
-#include "core/types.h"
-#include "core/base_port.h"
-#include "core/msg_logger.h"
+#include "InertialSenseSDK/core/types.h"
+#include "InertialSenseSDK/core/base_port.h"
+#include "InertialSenseSDK/core/msg_logger.h"
 
-#include "ISUtilities.h"
+#include "InertialSenseSDK/ISUtilities.h"
 
 
 /**

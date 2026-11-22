@@ -1,0 +1,24 @@
+{
+  "name": "Inertial Sense RUG 3 Dual",
+  "version": "1.0.0",
+  "description": "Basic IMU use for RUG 3 Dual",
+  "keywords": "rug 3, Inertial, sense",
+  "repository":
+  {
+    "type": "",
+    "url": ""
+  },
+  "authors":
+  [
+    {
+      "name": "Sophie Noureddine"
+    },
+    {
+      "name": "Cyan Brown",
+      "maintainer": true
+    }
+  ],
+  "license": "MIT",
+  "frameworks": "*",
+  "platforms": "*"
+}

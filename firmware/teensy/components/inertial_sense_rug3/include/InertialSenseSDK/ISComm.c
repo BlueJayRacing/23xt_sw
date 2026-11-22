@@ -13,9 +13,9 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 // #define IS_LOG_LEVEL IS_LOG_LEVEL_MORE_DEBUG
 // #define IS_ENABLED_FACILITIES  (IS_LOG_ISCOMM)
 
-#include "core/msg_logger.h"
-#include "ISConstants.h"
-#include "ISComm.h"
+#include "InertialSenseSDK/core/msg_logger.h"
+#include "InertialSenseSDK/ISConstants.h"
+#include "InertialSenseSDK/ISComm.h"
 
 #define MAX_MSG_LENGTH_ISB          PKT_BUF_SIZE
 #define MAX_MSG_LENGTH_NMEA         200

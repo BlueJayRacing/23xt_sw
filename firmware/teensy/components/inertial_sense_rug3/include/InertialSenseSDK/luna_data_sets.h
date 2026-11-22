@@ -22,7 +22,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <string.h>
-#include "ISConstants.h"
+#include "InertialSenseSDK/ISConstants.h"
 
 #ifdef __cplusplus
 extern "C" {
