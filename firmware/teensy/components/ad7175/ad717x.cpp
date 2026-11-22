@@ -16,6 +16,7 @@
 #include "ad7175_2_regs.hpp"
 #include "ad7175_8_regs.hpp"
 #include "ad717x.hpp"
+#include <Arduino.h>
 
 /* Error codes */
 #define INVALID_VAL -1 /* Invalid argument */
@@ -714,7 +715,7 @@ int32_t AD717X::setReferenceSource(ad717x_ref_source_t t_ref_source, uint8_t t_s
             return -EINVAL;
 
         /* Set the REF_EN Bit */
-        adc_mode_reg->value |= AD717X_ADCMODE_REG_REF_EN;
+        adc_mode_reg->value |= 0;//AD717X_ADCMODE_REG_REF_EN;
         if (writeRegister(AD717X_ADCMODE_REG) < 0)
             return -EINVAL;
         device_.ref_en = true;

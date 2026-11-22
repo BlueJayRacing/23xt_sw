@@ -332,18 +332,19 @@ bool PBUDPHandler::encodeSamples(const util::data::ChannelSample* samples, size_
     // Create and initialize the ChannelSample messages
     ChannelSampleBatch message = ChannelSampleBatch_init_zero;
     message.samples_count = count;
-    for (size_t i = 0; i < count; i++) {
-        Sample sample = Sample_init_zero;
-        sample.timestamp = samples[i].timestamp;
-        sample.internal_channel_id = samples[i].internalChannelId;
-        sample.value = samples[i].rawValue;
-        message.samples[i] = sample;
-    }
+    // for (size_t i = 0; i < count; i++) {
+    //     Sample sample = Sample_init_zero;
+    //     sample.timestamp = samples[i].timestamp;
+    //     sample.internal_channel_id = samples[i].internalChannelId;
+    //     sample.value = samples[i].rawValue;
+    //     message.samples[i] = sample;
+    // }
+    return false;
     pb_ostream_t stream = pb_ostream_from_buffer(outputBuffer, config::PB_MAX_MESSAGE_SIZE);
-    if (!pb_encode(&stream, ChannelSampleBatch_fields, &message)) {
-        util::Debug::error("PBUDPHandler: Encoding failed: " + String(PB_GET_ERROR(&stream)));
-        return false;
-    }
+    // if (!pb_encode(&stream, ChannelSampleBatch_fields, &message)) {
+    //     util::Debug::error("PBUDPHandler: Encoding failed: " + String(PB_GET_ERROR(&stream)));
+    //     return false;
+    // }
     outputSize = stream.bytes_written;
     return true;
 }

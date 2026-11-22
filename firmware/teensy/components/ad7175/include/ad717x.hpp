@@ -517,7 +517,11 @@ typedef struct ad717x_data {
 
 class AD717X {
   public:
+<<<<<<< HEAD
     AD717X() : spi_host_(&SPI), settings_(8000000, MSBFIRST, SPI_MODE3) {};
+=======
+    AD717X() : spi_host_(&SPI1), settings_(8000000, MSBFIRST, SPI_MODE3) {};
+>>>>>>> main
     ~AD717X();
 
     int32_t init(ad717x_init_param_t& t_init_param, SPIClass* t_spi_host, int8_t t_cs_pin);
