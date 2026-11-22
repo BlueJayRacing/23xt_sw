@@ -64,8 +64,8 @@ namespace baja {
 namespace config {
 
 // Buffer Configuration
-constexpr size_t SAMPLE_RING_BUFFER_SIZE = 4000U;
-constexpr size_t FAST_BUFFER_SIZE = 4096; // Fast path buffer for network transmission
+constexpr size_t SAMPLE_RING_BUFFER_SIZE = 2000U;
+constexpr size_t FAST_BUFFER_SIZE = 2048; // Fast path buffer for network transmission
 constexpr float DATA_BUFFER_WRITE_THRESHOLD = 0.10f; // Start writing at 10% data buffer utilization
 constexpr size_t MIN_BYTES_FOR_WRITE = 512;       // Minimum bytes to write (1 sector)
 

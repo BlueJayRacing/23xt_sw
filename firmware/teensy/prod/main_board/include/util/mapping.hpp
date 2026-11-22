@@ -161,6 +161,7 @@ inline std::string getChannelNameString(ChannelName channelName) {
  * @return true if the channel should be enabled by default, false otherwise
  */
 inline bool shouldADCChannelBeEnabled(ChannelName channelName) {
+    return true;
     // Enable all data channels by default, but not reference channels
     switch (channelName) {
         case ChannelName::GND:
@@ -230,9 +231,16 @@ enum class InternalChannelID : uint8_t {
     WSG1_SG0 = 25,
     WSG1_SG1,
     WSG1_SG2,
+
+    IMU_P = 28,
+    IMU_Q,
+    IMU_R,
+    IMU_X,
+    IMU_Y,
+    IMU_Z,
     
     // Miscellaneous channels
-    MISC0 = 28,  // Can be used for system temperature
+    MISC0 = 34,  // Can be used for system temperature
     MISC1,       // Can be used for power supply voltage
     MISC2,       // Can be used for CPU load
     MISC3,       // Can be used for memory usage
@@ -359,8 +367,8 @@ inline bool shouldChannelBeEnabled(InternalChannelID channelID) {
         return true;
     }
     else if (id >= 22 && id <= 27) {
-    // wsg channels
-    return true;
+        // wsg channels
+        return false;
     }
     else if (id >= 28 && id <= 36) {
         // Misc channels - disable by default, enable programmatically as needed

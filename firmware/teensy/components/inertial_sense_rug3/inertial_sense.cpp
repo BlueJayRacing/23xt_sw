@@ -1,7 +1,7 @@
 #include "inertial_sense.hpp"
 
-InertialSense::InertialSense(HardwareSerialIMXRT interface, int tx_pin_, int rx_pin_) :
-    serial(interface), tx_pin(tx_pin_), rx_pin(rx_pin_) {}
+InertialSense::InertialSense(HardwareSerialIMXRT& interface, int tx_pin_, int rx_pin_) :
+    serial(&interface), tx_pin(tx_pin_), rx_pin(rx_pin_) {}
 
 bool InertialSense::init() {
     bool pass = true;
@@ -37,9 +37,9 @@ bool InertialSense::check_wiring()
 
 void InertialSense::start_uart()
 {
-    serial.end();
-    serial.begin(BAUD_RATE);
-    serial.addMemoryForRead(serialRxExtra, sizeof(serialRxExtra));
+    serial->end();
+    serial->begin(BAUD_RATES[baud_index]);
+    serial->addMemoryForRead(serialRxExtra, sizeof(serialRxExtra));
     is_comm_init(&comm, commBuf, sizeof(commBuf), NULL);
     rawBytes = pktsOk = pktsNmea = pktsBad = 0;
 }
@@ -49,13 +49,15 @@ bool InertialSense::configure_IMX()
 {
     uint8_t tx[64];
 
+    lastConfigms = millis();
+
     int n = is_comm_write_to_buf(tx, sizeof(tx), &comm, PKT_TYPE_STOP_BROADCASTS_ALL_PORTS, 0, 0, 0, NULL);
-    if (n > 0) serial.write(tx, n);
+    if (n > 0) serial->write(tx, n);
     else return false;
     delay(10);
 
     n = is_comm_get_data_to_buf(tx, sizeof(tx), &comm, DID_IMU, 0, 0, IMU_PERIOD_MULTIPLE);
-    if (n > 0) serial.write(tx, n);
+    if (n > 0) serial->write(tx, n);
     else return false;
 
     return true;
@@ -64,7 +66,7 @@ bool InertialSense::configure_IMX()
 void InertialSense::print_status()
 {
     Serial.print("# baud ");
-    Serial.print(BAUD_RATE);
+    Serial.print(BAUD_RATES[baud_index]);
     Serial.print(": ");
     Serial.print(rawBytes);  Serial.print(" bytes, ");
     Serial.print(pktsOk);    Serial.print(" IS packets, ");
@@ -78,28 +80,28 @@ void InertialSense::handle_IMU(const imu_t &imu)
     uint32_t now = millis();
     lastIMUms = now;
 
+    // serial->flush();
+
 
     if (PRINT_INTERVAL_MS > 0 && now - lastPrintms < PRINT_INTERVAL_MS) return;
     lastPrintms = now;
 
     // (Serial.printf is unavailable: the SDK's printf.h #defines printf -> printf_)
-    char line[128];
-    int n = snprintf(line, sizeof(line), "%.4f, %8.4f, %8.4f, %8.4f, %8.4f, %8.4f, %8.4f\n",
-                     imu.time,
-                     imu.I.acc[0], imu.I.acc[1], imu.I.acc[2],
-                     imu.I.pqr[0], imu.I.pqr[1], imu.I.pqr[2]);
-    if (n > 0) Serial.write(line, min(n, (int)sizeof(line) - 1));
+    // char line[128];
+    // int n = snprintf(line, sizeof(line), "%.4f, %8.4f, %8.4f, %8.4f, %8.4f, %8.4f, %8.4f\n",
+    //                  imu.time,
+    //                  imu.I.acc[0], imu.I.acc[1], imu.I.acc[2],
+    //                  imu.I.pqr[0], imu.I.pqr[1], imu.I.pqr[2]);
+    // if (n > 0) Serial.write(line, min(n, (int)sizeof(line) - 1));
 }
 
 bool InertialSense::get_sample(IMUResults_t& result) {
-    uint32_t now = millis();
-
     bool sampled = false;
 
     // Read everything waiting on the UART and feed it to the SDK parser
     uint8_t chunk[512];
-    while (int avail = serial.available()) {
-        int n = serial.readBytes((char *)chunk, min(avail, (int)sizeof(chunk)));
+    while (int avail = serial->available()) {
+        int n = serial->readBytes((char *)chunk, min(avail, (int)sizeof(chunk)));
         rawBytes += n;
         for (int i = 0; i < n; i++) {
             protocol_type_t ptype = is_comm_parse_byte(&comm, chunk[i]);
@@ -108,10 +110,11 @@ bool InertialSense::get_sample(IMUResults_t& result) {
             else if (ptype >= _PTYPE_INERTIAL_SENSE_ACK && ptype <= _PTYPE_INERTIAL_SENSE_DATA) pktsOk++;
 
             // // Valid Inertial Sense packets (or clean NMEA) mean the baud rate is right
-            // if ((pktsOk > 0 || pktsNmea > 2)) {
-            //     Serial.print("# Found IMX at baud ");
-            //     Serial.println(BAUD_RATES[baudIndex]);
-            // }
+            if (!baud_locked && (pktsOk > 0 || pktsNmea > 2)) {
+                Serial.print("# Found IMX at baud ");
+                Serial.println(BAUD_RATES[baud_index]);
+                baud_locked = true;
+            }
 
             if (ptype == _PTYPE_INERTIAL_SENSE_DATA &&
                 comm.rxPkt.dataHdr.id == DID_IMU &&
@@ -127,9 +130,24 @@ bool InertialSense::get_sample(IMUResults_t& result) {
                 result.y = imu.I.acc[1];
                 result.z = imu.I.acc[2];
                 sampled = true;
+                // return true;
             }
         }
     }
+
+    // Serial.println("failed shit");
+    uint32_t now = millis();
+    if (now - lastIMUms > NO_DATA_RETRY_MS && now - lastConfigms > NO_DATA_RETRY_MS) {
+        print_status();
+        check_wiring();
+        baud_locked = false;
+        if (!baud_locked) {
+            baud_index = (baud_index + 1) % NUM_BAUDS;
+            start_uart();
+        }
+        configure_IMX();
+    }
+
 
     return sampled;
 }

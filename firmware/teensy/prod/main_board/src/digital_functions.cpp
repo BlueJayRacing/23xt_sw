@@ -36,7 +36,10 @@ FASTRUN static void isr_d2() {if (!digitalCounterIncremented_[1]) digitalCounter
 FASTRUN static void isr_d3() {if (!digitalCounterIncremented_[2]) digitalCounters_[2]++; digitalCounterIncremented_[2] = !digitalCounterIncremented_[2]; } // if (!digitalCounterIncremented_[2]) 
 FASTRUN static void isr_d4() {if (!digitalCounterIncremented_[3]) digitalCounters_[3]++; digitalCounterIncremented_[3] = !digitalCounterIncremented_[3]; } // if (!digitalCounterIncremented_[3]) 
 FASTRUN static void isr_d5() {if (!digitalCounterIncremented_[4]) digitalCounters_[4]++; digitalCounterIncremented_[4] = !digitalCounterIncremented_[4]; } // if (!digitalCounterIncremented_[4]) 
-FASTRUN static void isr_d6() {if (!digitalCounterIncremented_[5]) digitalCounters_[5]++; digitalCounterIncremented_[5] = !digitalCounterIncremented_[5]; } // if (!digitalCounterIncremented_[5]) 
+// FASTRUN static void isr_d6() {if (!digitalCounterIncremented_[5]) digitalCounters_[5]++; digitalCounterIncremented_[5] = !digitalCounterIncremented_[5]; } // if (!digitalCounterIncremented_[5]) 
+
+static uint32_t downsampleCounter = 0;
+
 
 bool initialize(
     util::buffer::RingBuffer<util::data::ChannelSample, config::SAMPLE_RING_BUFFER_SIZE>& mainBuffer,
@@ -53,7 +56,6 @@ bool initialize(
     digital_pins[2] = D3_PIN;
     digital_pins[3] = D4_PIN;
     digital_pins[4] = D5_PIN;
-    digital_pins[5] = D6_PIN;
 
     // Initialize counters and flags
     for (int i = 0; i < DIGITAL_CHANNEL_COUNT; i++) {
@@ -64,18 +66,19 @@ bool initialize(
     }
     
     // Configure pins as inputs
-    pinMode(D1_PIN, INPUT);
-    pinMode(D2_PIN, INPUT);
-    pinMode(D3_PIN, INPUT);
-    pinMode(D4_PIN, INPUT);
-    pinMode(D5_PIN, INPUT);
-    pinMode(D6_PIN, INPUT);
+    pinMode(D1_PIN, INPUT_PULLDOWN);
+    pinMode(D2_PIN, INPUT_PULLDOWN);
+    pinMode(D3_PIN, INPUT_PULLDOWN);
+    pinMode(D4_PIN, INPUT_PULLDOWN);
+    pinMode(D5_PIN, INPUT_PULLDOWN);
+
+    pinMode(OE_PIN, OUTPUT);
     
     // Reset timing statistics
     resetTimingStats();
 
-    SPI1.begin();
-    data_sender.init(&SPI1, 28, 18, esp_spi_settings);
+    // SPI1.begin();
+    // data_sender.init(&SPI1, 28, 18, esp_spi_settings);
     
     util::Debug::info(F("Digital: Initialization successful"));
     return true;
@@ -87,16 +90,17 @@ bool start() {
         util::Debug::warning(F("Digital: Already running"));
         return true;
     }
+
+    digitalWrite(OE_PIN, LOW);
     
     util::Debug::info(F("Digital: Attaching interrupts"));
     
     // Attach interrupts for each digital input on RISING edge
     attachInterrupt(digitalPinToInterrupt(D1_PIN), isr_d1, CHANGE);
     attachInterrupt(digitalPinToInterrupt(D2_PIN), isr_d2, CHANGE);
-    // attachInterrupt(digitalPinToInterrupt(D3_PIN), isr_d3, CHANGE);
-    // attachInterrupt(digitalPinToInterrupt(D4_PIN), isr_d4, CHANGE);
-    // attachInterrupt(digitalPinToInterrupt(D5_PIN), isr_d5, CHANGE);
-    // attachInterrupt(digitalPinToInterrupt(D6_PIN), isr_d6, CHANGE);
+    attachInterrupt(digitalPinToInterrupt(D3_PIN), isr_d3, CHANGE);
+    attachInterrupt(digitalPinToInterrupt(D4_PIN), isr_d4, CHANGE);
+    attachInterrupt(digitalPinToInterrupt(D5_PIN), isr_d5, CHANGE);
     
     // Reset sample count
     sampleCount_ = 0;
@@ -114,10 +118,9 @@ bool stop() {
     // Detach interrupts
     detachInterrupt(digitalPinToInterrupt(D1_PIN));
     detachInterrupt(digitalPinToInterrupt(D2_PIN));
-    // detachInterrupt(digitalPinToInterrupt(D3_PIN));
-    // detachInterrupt(digitalPinToInterrupt(D4_PIN));
-    // detachInterrupt(digitalPinToInterrupt(D5_PIN));
-    // detachInterrupt(digitalPinToInterrupt(D6_PIN));
+    detachInterrupt(digitalPinToInterrupt(D3_PIN));
+    detachInterrupt(digitalPinToInterrupt(D4_PIN));
+    detachInterrupt(digitalPinToInterrupt(D5_PIN));
     
     running_ = false;
     util::Debug::info(F("Digital: Stopped"));
@@ -146,12 +149,12 @@ bool process() {
     uint32_t currentTimeMs = millis();
     
     // Check each digital input
-    for (int i = 0; i < 2; i++) {
+    for (int i = 0; i < DIGITAL_CHANNEL_COUNT; i++) {
         // Check if counter was incremented or if sampling interval has elapsed
         // We need to disable interrupts temporarily for reading the volatile flag
         noInterrupts();
         bool needSample = digitalCounterIncremented_[i] || (currentTimeMs - lastSampleTimeMs_[i] >= SAMPLE_INTERVAL_MS);
-
+        // Serial.println("need sample");
         if (needSample) {
             uint32_t counterValue = digitalCounters_[i];
 
@@ -164,16 +167,16 @@ bool process() {
             interrupts();
 
             // Print outside interrupts
-            // if (wasEdge) {
-            //     util::Debug::info(F("Digital channel: ") + String(i) + F(" with count: ") + String(counterValue));
-            // }
+            if (wasEdge) {
+                util::Debug::info(F("Digital channel: ") + String(i) + F(" with count: ") + String(counterValue));
+            }
 
             // Update last sample time
             lastSampleTimeMs_[i] = currentTimeMs;
             
             // Get a high-precision timestamp for this sample
             uint64_t timestampMicros = util::getMicrosecondsSinceEpoch();
-            
+            // Serial.println("writing sample");
             // Create a channel sample with internal ID and timestamp
             util::data::ChannelSample channelSample(
                 timestampMicros,                // Microsecond timestamp
@@ -184,12 +187,11 @@ bool process() {
 
             data_sender.publish_sample(channelSample);
             
-            // Write to main buffer for SD storage
+            // // Write to main buffer for SD storage
             bool mainBufferOk = mainBuffer_->write(channelSample);
             
-            // Also write to fast buffer for network transmission
-            // Note: Using a static counter for downsampling, similar to what might be in ADC code
-            static uint32_t downsampleCounter = 0;
+            // // Also write to fast buffer for network transmission
+            // // Note: Using a static counter for downsampling, similar to what might be in ADC code
             bool fastBufferOk = false;
             
             // Only add to fast buffer according to downsample ratio
@@ -205,6 +207,8 @@ bool process() {
                     }
                 }
             }
+
+            // Serial.println("done writing sample");
             downsampleCounter++;
             
             if (mainBufferOk) {
@@ -212,7 +216,7 @@ bool process() {
                 sampleCount_++;
 
                 // Print channel data
-                if (sampleCount_ % (DIGITAL_CHANNEL_COUNT * 50 + 5) == 0) {
+                if (sampleCount_ % (DIGITAL_CHANNEL_COUNT * 50 + 4) == 0) {
                     util::Debug::info(F("Sample data for digital channel: ") + String(i) +
                                       F(" with count: ") + String(counterValue) +
                                       F(", level: ") + String(digitalRead(digital_pins[i]) == HIGH ? "HIGH" : "LOW"));

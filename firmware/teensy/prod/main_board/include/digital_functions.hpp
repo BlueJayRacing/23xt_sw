@@ -9,17 +9,18 @@ namespace baja {
 namespace digital {
 
 // Constants for the digital input pins
-constexpr uint8_t D1_PIN = 39;
-constexpr uint8_t D2_PIN = 38;
+constexpr uint8_t D1_PIN = 15;
+constexpr uint8_t D2_PIN = 16;
 constexpr uint8_t D3_PIN = 17;
-constexpr uint8_t D4_PIN = 16;
-constexpr uint8_t D5_PIN = 15;
-constexpr uint8_t D6_PIN = 14;
+constexpr uint8_t D4_PIN = 18;
+constexpr uint8_t D5_PIN = 19;
 
-static uint8_t digital_pins[6] = {0};
+constexpr uint8_t OE_PIN = 14;
+
+static uint8_t digital_pins[5] = {0};
 
 // Number of digital channels
-constexpr uint8_t DIGITAL_CHANNEL_COUNT = 6;
+constexpr uint8_t DIGITAL_CHANNEL_COUNT = 5;
 
 // Internal channel IDs for digital channels (matching the mapping in teensy_mapping.hpp)
 constexpr uint8_t DIGITAL_CHANNEL_ID_START = 16; // As per the mapping

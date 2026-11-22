@@ -2,6 +2,7 @@
 #include "util/debug_util.hpp"
 #include "util/sample_data.hpp"
 #include "util/timing_stats.hpp"
+#include "util/mapping.hpp"
 
 namespace baja {
 namespace adc {
@@ -81,7 +82,7 @@ bool ADC7175Handler::configureChannel(const ChannelConfig& config) {
         return false;
     }
 
-    result = adcDriver_.setReferenceSource(EXTERNAL_REF, config.setupIndex);
+    result = adcDriver_.setReferenceSource(EXTERNAL_REF2, config.setupIndex);
     if (result < 0) {
         util::Debug::error("ADC: set reference source failed with code " + String(result));
         return false;
@@ -143,17 +144,9 @@ int ADC7175Handler::pollForSample(uint32_t timeout_ms) {
         util::mapADCToInternalID(sample.status.active_channel));
     
 
-    if (internalChannelId > 15) {
-        util::Debug::info(F("WHAT THE DUCK IS HAPPENING RN!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1"));
-    }
-
-    if(lastConversionTime_ == 0) {
-        util::Debug::info(F("ts should never HAPPEN THIS IS A LONG LINE..............."));
-    }
-
-    if (pollSampleCounter_ % (16 * 50 + 15) == 0) {
-        util::Debug::info(F("Sample data for channel: ") + String(internalChannelId) + F(" with value: ") + String(sample.value));
-    }
+    // if (pollSampleCounter_ % (16 * 50 + 15) == 0) {
+    //     util::Debug::info(F("Sample data for channel: ") + String(internalChannelId) + F(" with value: ") + String(sample.value));
+    // }
 
     // if (internalChannelId == 6) util::Debug::info(F("reading from adc channel: ") + String(internalChannelId) + F(" with value: ") + String(sample.value));
 
@@ -304,6 +297,8 @@ bool ADC7175Handler::initialize(uint8_t csPin, SPIClass& spiInterface,
         channelSampleCounters_[i] = 0;
     }
 
+    spiInterface_->setMISO(39);
+
     // Configure the CS pin as output
     pinMode(csPin_, OUTPUT);
     digitalWrite(csPin_, HIGH); // Deselect ADC
@@ -318,7 +313,7 @@ bool ADC7175Handler::initialize(uint8_t csPin, SPIClass& spiInterface,
     // Set up the channel map initially with all channels disabled
     initParam.chan_map.resize(ADC_CHANNEL_COUNT);
     for (int i = 0; i < ADC_CHANNEL_COUNT; i++) {
-        initParam.chan_map[i].channel_enable = true; // Only enable channels 0 and 1 for initial test
+        initParam.chan_map[i].channel_enable = 1; // Only enable channels 0 and 1 for initial test
         initParam.chan_map[i].setup_sel = 0;
 
         // Default to AINx for positive input and REF_M for negative
@@ -337,12 +332,12 @@ bool ADC7175Handler::initialize(uint8_t csPin, SPIClass& spiInterface,
     initParam.setups.push_back(setup);
 
     // Bring up the device; on failure, reset and retry once
-    int result = adcDriver_.init(initParam, spiInterface_, csPin_, SPISettings(5000000, MSBFIRST, SPI_MODE3));
+    int result = adcDriver_.init(initParam, spiInterface_, csPin_, SPISettings(50000000, MSBFIRST, SPI_MODE3));
     if (result < 0) {
         util::Debug::error(F("ADC: Initialization failed, resetting and retrying..."));
         resetADC();
         delay(50);
-        result = adcDriver_.init(initParam, spiInterface_, csPin_, SPISettings(5000000, MSBFIRST, SPI_MODE3));
+        result = adcDriver_.init(initParam, spiInterface_, csPin_, SPISettings(50000000, MSBFIRST, SPI_MODE3));
         if (result < 0) {
             util::Debug::error("ADC: Retry failed with code " + String(result));
             return false;

@@ -20,11 +20,12 @@
 #include "pbudp_functions.hpp"      // Combined PB+UDP thread
 #include "digital_functions.hpp"    // Digital input monitoring
 #include "wsg_functions.hpp"
+#include "imu_functions.hpp"
 
 // NEW: Time functions module (our NTP/SRTC updater)
 #include "time_functions.hpp"
 
-#define NO_ANALOG
+// #define NO_ANALOG
 #define NO_WSG
 
 // #define ESP_TIMESYNC
@@ -67,6 +68,7 @@ bool adcInitialized = false;
 bool sdCardInitialized = false;
 bool networkInitialized = false;
 bool digitalInitialized = false;    // Digital input status flag
+bool imuInitialized = false;
 uint32_t loopCount = 0;
 uint32_t samplesProcessedTotal = 0;
 uint32_t startTime = 0;
@@ -183,6 +185,23 @@ void printSystemStatus() {
                             F("µs, min=") + String(minTime) + 
                             F("µs, max=") + String(maxTime) + F("µs"));
     }
+
+        // Print digital input status
+    if (imuInitialized && baja::imu::isRunning()) {
+        uint64_t sampleCount = baja::imu::getSampleCount();
+        
+        baja::util::Debug::info(F("IMU: Samples: ") + String(sampleCount));
+        
+        // Print digital timing stats
+        float avgTime;
+        uint32_t minTime, maxTime;
+        uint64_t sampleCountTiming;
+        baja::imu::getTimingStats(avgTime, minTime, maxTime, sampleCountTiming);
+        
+        baja::util::Debug::info(F("IMU Timing: avg=") + String(avgTime, 1) + 
+                            F("µs, min=") + String(minTime) + 
+                            F("µs, max=") + String(maxTime) + F("µs"));
+    }
     
     // Print buffer statistics
     if (adcInitialized) {
@@ -264,7 +283,7 @@ void printSystemStatus() {
 
 void setup() {
     // Initialize serial
-    Serial.begin(9600);
+    Serial.begin(115200);
     while (!Serial && millis() < 1000) { }
     
     // Record start time
@@ -295,19 +314,19 @@ void setup() {
     baja::wsg_streaming::init(&SPI1, 36, 3, esp_spi_settings, sampleBuffer, fastBuffer);
 #endif
 
-#ifndef NO_ANALOG
-    // Initialize channel configurations
-    bool configSuccess = baja::adc::initializeChannelConfigs(
-        channelConfigsArray, 
-        baja::config::ADC_ENABLE_ALL_CHANNELS
-    );
-    if (!configSuccess) {
-        baja::util::Debug::error(F("Failed to initialize channel configurations!"));
-    } else {
-        // Print the channel configurations
-        baja::adc::printChannelConfigs(channelConfigsArray);
-    }
-#endif
+// #ifndef NO_ANALOG
+//     // Initialize channel configurations
+//     bool configSuccess = baja::adc::initializeChannelConfigs(
+//         channelConfigsArray, 
+//         baja::config::ADC_ENABLE_ALL_CHANNELS
+//     );
+//     if (!configSuccess) {
+//         baja::util::Debug::error(F("Failed to initialize channel configurations!"));
+//     } else {
+//         // Print the channel configurations
+//         baja::adc::printChannelConfigs(channelConfigsArray);
+//     }
+// #endif
 
     // Initialize digital inputs
     baja::util::Debug::info(F("Initializing digital inputs..."));
@@ -329,6 +348,24 @@ void setup() {
         }
     } else {
         baja::util::Debug::error(F("Digital input initialization failed!"));
+    }
+
+    baja::util::Debug::info(F("Initializing IMU..."));
+    imuInitialized = baja::imu::initialize(sampleBuffer, fastBuffer);
+
+    if (imuInitialized) {
+        baja::util::Debug::info(F("IMU initialized successfully."));
+        
+        // Start IMU monitoring
+        baja::util::Debug::info(F("Starting IMU monitoring..."));
+        if (!baja::imu::start()) {
+            baja::util::Debug::error(F("Failed to start IMU monitoring!"));
+            imuInitialized = false;
+        } else {
+            baja::util::Debug::info(F("IMU monitoring started successfully"));
+        }
+    } else {
+        baja::util::Debug::error(F("IMU initialization failed!"));
     }
 
     // Initialize the SD card
@@ -377,35 +414,35 @@ void setup() {
     // Initialize the ADC
     adcInitialized = adcHandler.initialize(
         ADC_CS_PIN,
-        SPI,
+        SPI1,
         adcSettings
     );
     
     if (adcInitialized) {
         baja::util::Debug::info(F("ADC initialized successfully."));
+        adcInitialized = true;
+        // // Configure ADC channels
+        // baja::util::Debug::info(F("Configuring ADC channels..."));
+        // bool configSuccess = adcHandler.configureChannels(
+        //     channelConfigsArray,
+        //     baja::adc::ADC_CHANNEL_COUNT
+        // );
         
-        // Configure ADC channels
-        baja::util::Debug::info(F("Configuring ADC channels..."));
-        bool configSuccess = adcHandler.configureChannels(
-            channelConfigsArray,
-            baja::adc::ADC_CHANNEL_COUNT
-        );
-        
-        if (!configSuccess) {
-            baja::util::Debug::error(F("ADC channel configuration failed!"));
+        // if (!configSuccess) {
+        //     baja::util::Debug::error(F("ADC channel configuration failed!"));
+        //     adcInitialized = false;
+        // } else {
+        //     baja::util::Debug::info(F("ADC channels configured successfully."));
+            
+        //     // Start ADC
+        baja::util::Debug::info(F("Starting ADC..."));
+        if (!adcHandler.start()) {
+            baja::util::Debug::error(F("Failed to start ADC!"));
             adcInitialized = false;
         } else {
-            baja::util::Debug::info(F("ADC channels configured successfully."));
-            
-            // Start ADC
-            baja::util::Debug::info(F("Starting ADC..."));
-            if (!adcHandler.start()) {
-                baja::util::Debug::error(F("Failed to start ADC!"));
-                adcInitialized = false;
-            } else {
-                baja::util::Debug::info(F("ADC started successfully"));
-            }
+            baja::util::Debug::info(F("ADC started successfully"));
         }
+        // }
     } else {
         baja::util::Debug::error(F("ADC initialization failed!"));
     }
@@ -460,19 +497,28 @@ void loop() {
     // Increment loop counter
     loopCount++;
 
-    // Always process ADC data - highest priority
+    // // Always process ADC data - highest priority
     if (adcInitialized && adcHandler.processSample()) {
         samplesProcessedTotal++;
     } else if (!adcHandler.isRunning()) {
         // baja::util::Debug::info(F("ADC not running"));
     }
     
+    // Serial.println("digial sample");
     // Process digital inputs every cycle
     if (digitalInitialized && baja::digital::isRunning()) {
         baja::digital::process();
     } else if (!baja::digital::isRunning()) {
         baja::util::Debug::info(F("Digital not running"));
     }
+
+    // if (imuInitialized && baja::imu::isRunning()) {
+    baja::imu::process();
+    // } else if (!baja::imu::isRunning()) {
+    //     // baja::imu::start();
+    //     // baja::util::Debug::info(F("IMU is not running"));
+    // }
+    // Serial.println("after digital sample");
 
     // // sampleBuffer
     // baja::util::data::ChannelSample channelSample(
@@ -517,12 +563,13 @@ void loop() {
     //     }
     // }
 
-    static bool ntpSynced = false;
-    if (networkInitialized && loopCount % 100 == 2 && !ntpSynced) {
-        baja::time::update();
-        ntpSynced = true;
-    }
+    // static bool ntpSynced = false;
+    // if (networkInitialized && loopCount % 100 == 2 && !ntpSynced) {
+    //     baja::time::update();
+    //     ntpSynced = true;
+    // }
     
+    // Serial.println("system monitoring");
     // System monitoring and status reporting (every 5 seconds)
     static uint32_t lastStatusTime = 0;
     uint32_t currentTime = millis();

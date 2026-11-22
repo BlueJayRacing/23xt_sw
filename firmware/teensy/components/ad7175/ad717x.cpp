@@ -745,6 +745,8 @@ int32_t AD717X::enableBuffers(bool t_inbuf_en, bool t_refbuf_en, uint8_t t_setup
     if (!setup_reg)
         return -EINVAL;
 
+    setup_reg->value &= ~AD717X_SETUP_CONF_REG_BURNOUT_EN;
+
     if (t_inbuf_en)
         /* Enable input buffer for the chosen set up */
         setup_reg->value |= (AD717X_SETUP_CONF_REG_AINBUF_P | AD717X_SETUP_CONF_REG_AINBUF_N);

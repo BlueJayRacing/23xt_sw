@@ -69,9 +69,9 @@ void setup() {
   setupConfig.setup.bi_polar = false;
   setupConfig.setup.input_buff = true;
   setupConfig.setup.ref_buff = true;
-  setupConfig.setup.ref_source = EXTERNAL_REF;
+  setupConfig.setup.ref_source = EXTERNAL_REF2;
   // Choose an output data rate; for example, SPS_2500 (adjust as needed)
-  setupConfig.filter_config.odr = SPS_50;
+  setupConfig.filter_config.odr = SPS_10000;
   setupConfig.gain = 1.0f;
   initParams.setups.push_back(setupConfig);
 
@@ -82,7 +82,7 @@ void setup() {
     initParams.chan_map[i].setup_sel = 0;            // All channels use setup 0
     // Configure inputs: assume single-ended; positive input is channel number, negative tied to REF_M.
     initParams.chan_map[i].inputs.ainp.pos_input = static_cast<ad717x_analog_input_t>(i);
-    initParams.chan_map[i].inputs.ainp.neg_input = AVDD_AVSS_M;
+    initParams.chan_map[i].inputs.ainp.neg_input = REF_M;
   }
 
   // Initialize the ADC (using a 5MHz SPI clock).
@@ -122,6 +122,27 @@ void setup() {
     Serial.println();
   } else {
     Serial.println("Could not read FILTCON0 register.");
+  }
+
+  ad717x_st_reg_t* setupr = adcDriver.getReg(AD717X_SETUPCON0_REG);
+  if (setupr) {
+    // Print in hex:
+    // Serial.print("FILTCON0 register (raw) = 0x");
+    // Serial.println(filtReg->value, HEX);
+
+    // Print as a 32-bit binary:
+    uint32_t regVal = (uint32_t)setupr->value & 0xFFFFFFFFUL;
+    Serial.print("Setup 0 register (16-bit binary) = ");
+    for (int i = 15; i >= 0; i--) {
+      Serial.print((regVal >> i) & 1);
+      // Optional spacing every 4 bits:
+      if (i % 4 == 0) {
+        Serial.print(" ");
+      }
+    }
+    Serial.println();
+  } else {
+    Serial.println("Could not read setup0 register.");
   }
 
 
@@ -197,9 +218,8 @@ void loop() {
     Serial.print(buffer);
 
     // Print each channel in a fixed-width field
-    // for (int i = 0; i < 16; i++) {
+    for (int i = 0; i < 16; i++) 
     {
-      int i = 9;
       sprintf(buffer, ",  %10.2f", averages[i]);
       Serial.print(buffer);
     }
